@@ -1,0 +1,344 @@
+---
+alwaysApply: true
+---
+
+# Environment Configuration
+
+## Environment File Structure
+
+### File Naming
+
+```
+.env.local          # Local overrides (gitignored)
+.env.development    # Development environment
+.env.staging        # Staging environment
+.env.production     # Production environment
+.env.example        # Example file (committed)
+```
+
+### Environment File Priority (Next.js)
+
+1. `.env.local` (always loaded, except in test)
+2. `.env.development`, `.env.production`, `.env.staging` (based on NODE_ENV)
+3. `.env` (default, always loaded)
+
+## Environment Variable Naming
+
+### Naming Convention
+
+- Use `UPPER_SNAKE_CASE`
+- Prefix with app/service name if needed: `NEXT_PUBLIC_API_URL`
+- Use descriptive names: `DATABASE_URL`, `API_SECRET_KEY`
+- Group related vars: `NEXT_PUBLIC_*` for client-side
+
+### Naming Examples
+
+```bash
+# ✅ Good
+NEXT_PUBLIC_API_URL=https://api.example.com
+DATABASE_URL=postgresql://...
+API_SECRET_KEY=secret123
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_ANON_KEY=xxx
+
+# ❌ Bad
+apiUrl=https://api.example.com
+db_url=postgresql://...
+secret=secret123
+```
+
+## Next.js Environment Variables
+
+### Client-Side Variables
+
+```bash
+# Must be prefixed with NEXT_PUBLIC_ to be exposed to browser
+NEXT_PUBLIC_API_URL=https://api.example.com
+NEXT_PUBLIC_APP_NAME=Vamenta
+```
+
+### Server-Side Variables
+
+```bash
+# No prefix - only available on server
+DATABASE_URL=postgresql://...
+API_SECRET_KEY=secret123
+SESSION_SECRET=secret456
+```
+
+## TypeScript Environment Types
+
+### Environment Type Definition
+
+```typescript
+// env.d.ts or types/env.d.ts
+declare namespace NodeJS {
+  interface ProcessEnv {
+    // Next.js public variables
+    readonly NEXT_PUBLIC_API_URL: string;
+    readonly NEXT_PUBLIC_APP_NAME: string;
+    
+    // Server-side variables
+    readonly DATABASE_URL: string;
+    readonly API_SECRET_KEY: string;
+    readonly SESSION_SECRET: string;
+    
+    // Optional variables
+    readonly SUPABASE_URL?: string;
+    readonly SUPABASE_ANON_KEY?: string;
+  }
+}
+```
+
+## Environment Validation
+
+### Runtime Validation with Zod
+
+```typescript
+import { z } from 'zod';
+
+const envSchema = z.object({
+  NEXT_PUBLIC_API_URL: z.string().url(),
+  NEXT_PUBLIC_APP_NAME: z.string().min(1),
+  DATABASE_URL: z.string().url(),
+  API_SECRET_KEY: z.string().min(32),
+  SESSION_SECRET: z.string().min(32),
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+});
+
+export type Env = z.infer<typeof envSchema>;
+
+function validateEnv(): Env {
+  try {
+    return envSchema.parse(process.env);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      console.error('❌ Invalid environment variables:', error.flatten().fieldErrors);
+      throw new Error('Invalid environment variables');
+    }
+    throw error;
+  }
+}
+
+export const env = validateEnv();
+```
+
+### Validation on App Start
+
+```typescript
+// app/layout.tsx or app initialization
+import { env } from '@/shared/config/env';
+
+// Validate on app start
+if (typeof window === 'undefined') {
+  // Server-side validation
+  console.log('Environment validated:', {
+    nodeEnv: env.NODE_ENV,
+    hasApiUrl: !!env.NEXT_PUBLIC_API_URL,
+  });
+}
+```
+
+## Environment Config Module
+
+### Centralized Config
+
+```typescript
+// shared/config/env.ts
+import { z } from 'zod';
+
+const envSchema = z.object({
+  NEXT_PUBLIC_API_URL: z.string().url(),
+  NEXT_PUBLIC_APP_NAME: z.string().min(1),
+  DATABASE_URL: z.string().url(),
+  API_SECRET_KEY: z.string().min(32),
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+});
+
+function validateEnv() {
+  try {
+    return envSchema.parse(process.env);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const missingVars = Object.keys(error.flatten().fieldErrors);
+      throw new Error(
+        `Missing or invalid environment variables: ${missingVars.join(', ')}`
+      );
+    }
+    throw error;
+  }
+}
+
+export const env = validateEnv();
+
+// Export typed config
+export const config = {
+  api: {
+    url: env.NEXT_PUBLIC_API_URL,
+  },
+  app: {
+    name: env.NEXT_PUBLIC_APP_NAME,
+    isDevelopment: env.NODE_ENV === 'development',
+    isProduction: env.NODE_ENV === 'production',
+    isTest: env.NODE_ENV === 'test',
+  },
+  database: {
+    url: env.DATABASE_URL,
+  },
+  secrets: {
+    apiKey: env.API_SECRET_KEY,
+  },
+} as const;
+```
+
+## Using Environment Variables
+
+### Client-Side Usage
+
+```typescript
+// ✅ Good - use typed config
+import { config } from '@/shared/config/env';
+
+export function apiClient() {
+  return axios.create({
+    baseURL: config.api.url,
+  });
+}
+
+// ❌ Bad - direct process.env access
+export function apiClient() {
+  return axios.create({
+    baseURL: process.env.NEXT_PUBLIC_API_URL, // Not type-safe
+  });
+}
+```
+
+### Server-Side Usage
+
+```typescript
+// app/api/events/route.ts
+import { config } from '@/shared/config/env';
+
+export async function GET() {
+  // Use config.secrets.apiKey (only available on server)
+  const response = await fetch(config.api.url, {
+    headers: {
+      Authorization: `Bearer ${config.secrets.apiKey}`,
+    },
+  });
+
+  return response.json();
+}
+```
+
+## .env.example File
+
+### Example File Template
+
+```bash
+# API Configuration
+NEXT_PUBLIC_API_URL=https://api.example.com
+NEXT_PUBLIC_APP_NAME=Vamenta
+
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/dbname
+
+# Secrets (never commit actual values)
+API_SECRET_KEY=your-secret-key-here-min-32-chars
+SESSION_SECRET=your-session-secret-here-min-32-chars
+
+# Supabase (optional)
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_ANON_KEY=xxx
+```
+
+### Keeping .env.example Updated
+
+- Update `.env.example` when adding new variables
+- Include all required variables
+- Use placeholder values
+- Document optional variables
+- Group related variables with comments
+
+## Security Best Practices
+
+### Never Commit Secrets
+
+```gitignore
+# .gitignore
+.env
+.env.local
+.env.*.local
+```
+
+### Secret Management
+
+- Use environment variables for secrets
+- Never hardcode secrets in code
+- Use different secrets for each environment
+- Rotate secrets regularly
+- Use secret management services for production
+
+### Client-Side Variables
+
+- Only expose non-sensitive data with `NEXT_PUBLIC_*`
+- Never expose API keys, secrets, or tokens
+- Consider security implications of exposed variables
+
+## Environment-Specific Configuration
+
+### Development Configuration
+
+```bash
+# .env.development
+NEXT_PUBLIC_API_URL=http://localhost:3000/api
+NODE_ENV=development
+```
+
+### Production Configuration
+
+```bash
+# .env.production
+NEXT_PUBLIC_API_URL=https://api.production.com
+NODE_ENV=production
+```
+
+### Staging Configuration
+
+```bash
+# .env.staging
+NEXT_PUBLIC_API_URL=https://api.staging.com
+NODE_ENV=production
+```
+
+## Testing Environment
+
+### Test Environment Variables
+
+```bash
+# .env.test
+NEXT_PUBLIC_API_URL=http://localhost:3000/api
+DATABASE_URL=postgresql://test:test@localhost:5432/test
+NODE_ENV=test
+```
+
+### Mock Environment in Tests
+
+```typescript
+// tests/setup.ts
+process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3000/api';
+process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
+```
+
+## Environment Checklist
+
+- [ ] Use `UPPER_SNAKE_CASE` for variable names
+- [ ] Prefix client-side variables with `NEXT_PUBLIC_`
+- [ ] Define TypeScript types for environment variables
+- [ ] Validate environment variables on app start
+- [ ] Keep `.env.example` updated
+- [ ] Never commit `.env` files
+- [ ] Use different secrets for each environment
+- [ ] Document required and optional variables
+- [ ] Use centralized config module
+- [ ] Validate environment variables with Zod

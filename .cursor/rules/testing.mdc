@@ -1,0 +1,178 @@
+---
+alwaysApply: true
+---
+
+# Testing Guidelines
+
+## Component Testing
+
+- Use @testing-library/react for component tests
+- Test user interactions, not implementation details
+- Use MSW for API mocking in tests
+- Test component rendering and behavior
+- Test error states and loading states
+
+## Test File Naming
+
+- `component-name.test.tsx` for component tests
+- `hook-name.test.ts` for hook tests
+- `utility-name.test.ts` for utility tests
+- `api-name.test.ts` for API tests
+
+## Testing Patterns
+
+- Test component rendering
+- Test user interactions (clicks, form submissions)
+- Test error states
+- Test loading states
+- Mock external dependencies
+- Test accessibility features
+
+## MSW Setup
+
+- Create handlers for API endpoints
+- Use realistic response data
+- Test error scenarios
+- Mock different response states
+
+## Test Structure
+
+```typescript
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { rest } from 'msw';
+import { setupServer } from 'msw/node';
+import { EventCard } from './event-card';
+
+const server = setupServer(
+  rest.get('/api/events', (req, res, ctx) => {
+    return res(ctx.json([
+      { id: '1', title: 'Test Event', content: 'Test Content' }
+    ]));
+  })
+);
+
+beforeAll(() => server.listen());
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+describe('EventCard', () => {
+  it('should render event data correctly', () => {
+    const event = {
+      id: '1',
+      title: 'Test Event',
+      content: 'Test Content',
+      createdAt: new Date()
+    };
+
+    render(<EventCard event={event} onEdit={jest.fn()} onDelete={jest.fn()} />);
+
+    expect(screen.getByText('Test Event')).toBeInTheDocument();
+    expect(screen.getByText('Test Content')).toBeInTheDocument();
+  });
+
+  it('should call onEdit when edit button is clicked', () => {
+    const onEdit = jest.fn();
+    const event = { id: '1', title: 'Test', content: 'Test' };
+
+    render(<EventCard event={event} onEdit={onEdit} onDelete={jest.fn()} />);
+
+    fireEvent.click(screen.getByText('Edit'));
+    expect(onEdit).toHaveBeenCalledWith('1');
+  });
+
+  it('should show loading state', () => {
+    render(<EventCard event={null} onEdit={jest.fn()} onDelete={jest.fn()} isLoading={true} />);
+
+    expect(screen.getByTestId('loading-skeleton')).toBeInTheDocument();
+  });
+});
+```
+
+## Hook Testing
+
+```typescript
+import { renderHook, waitFor } from '@testing-library/react';
+import { useEvents } from './use-events';
+
+describe('useEvents', () => {
+  it('should fetch events successfully', async () => {
+    const { result } = renderHook(() => useEvents());
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.data).toHaveLength(1);
+    expect(result.current.error).toBeNull();
+  });
+
+  it('should handle error state', async () => {
+    server.use(
+      rest.get('/api/events', (req, res, ctx) => {
+        return res(ctx.status(500));
+      }),
+    );
+
+    const { result } = renderHook(() => useEvents());
+
+    await waitFor(() => {
+      expect(result.current.error).toBeTruthy();
+    });
+  });
+});
+```
+
+## Utility Testing
+
+```typescript
+import { formatDate, validateEmail } from './utils';
+
+describe('formatDate', () => {
+  it('should format date correctly', () => {
+    const date = new Date('2023-01-15');
+    expect(formatDate(date)).toBe('Jan 15, 2023');
+  });
+
+  it('should handle invalid date', () => {
+    expect(formatDate(null)).toBe('Invalid date');
+  });
+});
+
+describe('validateEmail', () => {
+  it('should validate correct email', () => {
+    expect(validateEmail('test@example.com')).toBe(true);
+  });
+
+  it('should reject invalid email', () => {
+    expect(validateEmail('invalid-email')).toBe(false);
+  });
+});
+```
+
+## Integration Testing
+
+- Test complete user workflows
+- Test form submissions
+- Test navigation between pages
+- Test data persistence
+
+## E2E Testing (Future)
+
+- Use Playwright or Cypress
+- Test critical user paths
+- Test responsive design
+- Test accessibility features
+
+## Test Coverage
+
+- Aim for 80%+ code coverage
+- Focus on business logic
+- Test edge cases
+- Test error scenarios
+
+## Performance Testing
+
+- Test component rendering performance
+- Test bundle size
+- Test memory leaks
+- Test loading times

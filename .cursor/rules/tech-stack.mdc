@@ -1,0 +1,75 @@
+---
+alwaysApply: true
+---
+
+# Technology Stack
+
+## Frontend Core
+
+- React 19 + TypeScript 5.x
+- Next.js 16 (App Router)
+- CSS Modules + HeroUI
+- React Query (TanStack Query v5)
+
+## HTTP & API
+
+- Axios (HTTP client)
+- React Query (caching and state management)
+
+## Validation
+
+- Zod (validation schemas)
+- React Hook Form + Zod resolver
+
+## State & Forms
+
+- Zustand (state management)
+- React Hook Form (forms)
+
+## Styling
+
+- CSS Modules
+- HeroUI
+- Lucide React (icons)
+- clsx
+
+## Development Tools
+
+- ESLint + Prettier
+- Stylelint (CSS/SCSS)
+- Left Hook (Git hooks)
+- Commit Lint (commit standardization)
+
+## Utilities
+
+- dayjs (date handling)
+- nanoid (unique IDs)
+
+## Testing
+
+- Vitest (test runner)
+- @testing-library/react (component testing)
+- MSW (mock service worker)
+
+## Backend (Future)
+
+- Supabase + Next route handlers
+
+## Infrastructure (Future)
+
+- Vercel (deployment)
+- Supabase (database)
+- GitHub Actions (CI/CD)
+
+## Version Requirements
+
+- Node.js: 24.11.0 (LTS)
+- pnpm: 10.20.0
+- TypeScript: 5.9.3
+
+## Browser Support
+
+- Chrome: latest 5 versions (120+)
+- Firefox: latest 5 versions (120+)
+- Safari: latest 5 versions (17+)
+- Edge: latest 5 versions (120+)

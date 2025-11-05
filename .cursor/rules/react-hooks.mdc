@@ -1,0 +1,368 @@
+---
+alwaysApply: true
+---
+
+# React Hooks Patterns
+
+## When to Create a Custom Hook
+
+- Extract reusable logic from components
+- Share stateful logic between components
+- Abstract complex logic (API calls, form handling, etc.)
+- When logic is used in 2+ components
+- When hook name makes intent clear (e.g., `useEvent`, `useAuth`)
+
+## Hook Naming Convention
+
+- Always start with `use` prefix
+- Use descriptive names: `useEvent`, `useAuth`, `useLocalStorage`
+- Use kebab-case for file names: `use-event.ts`, `use-auth.ts`
+
+## Basic Hook Structure
+
+```typescript
+// ✅ Good - clear hook structure
+export function useEvent(id: string) {
+  const query = useQuery({
+    queryKey: ['events', id],
+    queryFn: () => getEvent(id),
+    enabled: !!id,
+  });
+
+  return {
+    event: query.data,
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+  };
+}
+
+// ❌ Bad - returning raw query object
+export function useEvent(id: string) {
+  return useQuery({
+    queryKey: ['events', id],
+    queryFn: () => getEvent(id),
+  });
+}
+```
+
+## React Query Hooks
+
+### Query Hook Pattern
+
+```typescript
+export function useEvents(filters?: EventFilters) {
+  return useQuery({
+    queryKey: ['events', filters],
+    queryFn: () => getEvents(filters),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000, // Previously cacheTime
+  });
+}
+```
+
+### Mutation Hook Pattern
+
+```typescript
+export function useCreateEvent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: createEvent,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+    },
+  });
+}
+```
+
+### Combined Hook Pattern
+
+```typescript
+export function useEventManagement(id: string) {
+  const eventQuery = useEvent(id);
+  const updateMutation = useUpdateEvent();
+  const deleteMutation = useDeleteEvent();
+
+  const handleUpdate = useCallback(
+    (data: UpdateEventData) => {
+      updateMutation.mutate({ id, data });
+    },
+    [id, updateMutation]
+  );
+
+  const handleDelete = useCallback(() => {
+    deleteMutation.mutate(id);
+  }, [id, deleteMutation]);
+
+  return {
+    event: eventQuery.data,
+    isLoading: eventQuery.isLoading || updateMutation.isPending || deleteMutation.isPending,
+    error: eventQuery.error || updateMutation.error || deleteMutation.error,
+    update: handleUpdate,
+    delete: handleDelete,
+  };
+}
+```
+
+## Zustand Hooks
+
+### Store Hook Pattern
+
+```typescript
+// Store definition
+export const useAuthStore = create<AuthState>((set) => ({
+  user: null,
+  setUser: (user) => set({ user }),
+  logout: () => set({ user: null }),
+}));
+
+// Custom hook wrapper
+export function useAuth() {
+  const user = useAuthStore((state) => state.user);
+  const setUser = useAuthStore((state) => state.setUser);
+  const logout = useAuthStore((state) => state.logout);
+
+  return {
+    user,
+    isAuthenticated: !!user,
+    setUser,
+    logout,
+  };
+}
+```
+
+## Form Hooks
+
+### Form Hook with React Hook Form
+
+```typescript
+export function useEventForm(event?: Event) {
+  const form = useForm<EventFormData>({
+    resolver: zodResolver(EventSchema),
+    defaultValues: event ? {
+      title: event.title,
+      content: event.content,
+    } : undefined,
+  });
+
+  const createMutation = useCreateEvent();
+  const updateMutation = useUpdateEvent();
+
+  const onSubmit = form.handleSubmit((data) => {
+    if (event) {
+      updateMutation.mutate({ id: event.id, data });
+    } else {
+      createMutation.mutate(data);
+    }
+  });
+
+  return {
+    form,
+    onSubmit,
+    isLoading: createMutation.isPending || updateMutation.isPending,
+    error: createMutation.error || updateMutation.error,
+  };
+}
+```
+
+## Local State Hooks
+
+### Toggle Hook
+
+```typescript
+export function useToggle(initialValue = false) {
+  const [value, setValue] = useState(initialValue);
+
+  const toggle = useCallback(() => {
+    setValue((prev) => !prev);
+  }, []);
+
+  const setTrue = useCallback(() => {
+    setValue(true);
+  }, []);
+
+  const setFalse = useCallback(() => {
+    setValue(false);
+  }, []);
+
+  return { value, toggle, setTrue, setFalse };
+}
+```
+
+### Local Storage Hook
+
+```typescript
+export function useLocalStorage<T>(key: string, initialValue: T) {
+  const [storedValue, setStoredValue] = useState<T>(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      return initialValue;
+    }
+  });
+
+  const setValue = useCallback(
+    (value: T | ((val: T) => T)) => {
+      try {
+        const valueToStore = value instanceof Function ? value(storedValue) : value;
+        setStoredValue(valueToStore);
+        window.localStorage.setItem(key, JSON.stringify(valueToStore));
+      } catch (error) {
+        // Handle error
+      }
+    },
+    [key, storedValue]
+  );
+
+  return [storedValue, setValue] as const;
+}
+```
+
+## Effect Hooks
+
+### Debounced Value Hook
+
+```typescript
+export function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+```
+
+### Intersection Observer Hook
+
+```typescript
+export function useIntersectionObserver(
+  elementRef: RefObject<Element>,
+  options?: IntersectionObserverInit
+) {
+  const [isIntersecting, setIsIntersecting] = useState(false);
+
+  useEffect(() => {
+    const element = elementRef.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(([entry]) => {
+      setIsIntersecting(entry.isIntersecting);
+    }, options);
+
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [elementRef, options]);
+
+  return isIntersecting;
+}
+```
+
+## Hook Composition
+
+### Composing Multiple Hooks
+
+```typescript
+export function useEventPage(id: string) {
+  const event = useEvent(id);
+  const comments = useEventComments(id);
+  const relatedEvents = useRelatedEvents(id);
+  const isAuthenticated = useAuth().isAuthenticated;
+
+  const canEdit = useMemo(() => {
+    return isAuthenticated && event.data?.authorId === currentUser?.id;
+  }, [isAuthenticated, event.data, currentUser]);
+
+  return {
+    event: event.data,
+    comments: comments.data,
+    relatedEvents: relatedEvents.data,
+    isLoading: event.isLoading || comments.isLoading || relatedEvents.isLoading,
+    canEdit,
+  };
+}
+```
+
+## Hook Rules
+
+### Rules of Hooks
+
+- Only call hooks at the top level
+- Don't call hooks inside loops, conditions, or nested functions
+- Only call hooks from React function components or custom hooks
+- Use eslint-plugin-react-hooks to enforce rules
+
+### Hook Dependencies
+
+```typescript
+// ✅ Good - all dependencies listed
+export function useEvent(id: string) {
+  const query = useQuery({
+    queryKey: ['events', id],
+    queryFn: () => getEvent(id),
+  });
+
+  const handleRefetch = useCallback(() => {
+    query.refetch();
+  }, [query.refetch]);
+
+  return { event: query.data, refetch: handleRefetch };
+}
+
+// ❌ Bad - missing dependencies
+export function useEvent(id: string) {
+  const query = useQuery({
+    queryKey: ['events', id],
+    queryFn: () => getEvent(id),
+  });
+
+  const handleRefetch = useCallback(() => {
+    query.refetch();
+  }, []); // Missing query.refetch dependency
+}
+```
+
+## Testing Hooks
+
+### Testing Custom Hooks
+
+```typescript
+import { renderHook, waitFor } from '@testing-library/react';
+import { useEvent } from './use-event';
+
+describe('useEvent', () => {
+  it('should fetch event successfully', async () => {
+    const { result } = renderHook(() => useEvent('1'));
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.event).toBeDefined();
+  });
+});
+```
+
+## Hook Checklist
+
+- [ ] Hook name starts with `use`
+- [ ] Hook file uses kebab-case naming
+- [ ] Hook returns object with clear properties
+- [ ] All dependencies are properly listed
+- [ ] Hook handles loading and error states
+- [ ] Hook is reusable (used in 2+ components)
+- [ ] Hook has clear, single responsibility
+- [ ] Hook is properly typed with TypeScript
+- [ ] Hook is tested

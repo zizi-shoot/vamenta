@@ -1,0 +1,317 @@
+---
+alwaysApply: true
+---
+
+# Code Reusability Guidelines
+
+## DRY vs YAGNI Balance
+
+### When to Extract Code
+
+- Code is duplicated in 2+ places
+- Logic is complex and benefits from abstraction
+- Code will likely be reused in the future
+- Abstraction improves readability
+
+### When NOT to Extract
+
+- Code is only used once (YAGNI - You Aren't Gonna Need It)
+- Premature abstraction before understanding use cases
+- Over-abstraction that makes code harder to understand
+- Simple code that's clear as-is
+
+## Shared Layer Guidelines
+
+### What Belongs in Shared
+
+- UI components used across multiple features
+- Utility functions (formatDate, validateEmail, etc.)
+- Constants and configuration
+- Types that are used everywhere
+- Hooks that are truly generic
+
+### Shared Structure
+
+```
+shared/
+├── ui/              # Reusable UI components
+├── lib/             # Utility functions
+├── hooks/           # Generic hooks
+├── constants/       # App-wide constants
+└── types/           # Shared types
+```
+
+## Entity vs Feature vs Shared
+
+### Entity Layer
+
+- Business entities (Event, Task, User)
+- Entity-specific UI components
+- Entity-specific hooks
+- Entity-specific API functions
+
+### Feature Layer
+
+- Business logic and features
+- Feature-specific UI
+- Feature-specific hooks
+- Feature-specific state
+
+### Shared Layer
+
+- Generic utilities
+- Common UI components (Button, Input, Modal)
+- Generic hooks (useToggle, useDebounce)
+- App-wide constants
+
+## Extracting Reusable Code
+
+### When to Extract to Hook
+
+```typescript
+// ✅ Good - extract to hook when used in multiple components
+export function useEventCard(event: Event) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const updateMutation = useUpdateEvent();
+
+  const handleToggle = () => setIsExpanded(!isExpanded);
+  const handleEdit = () => {/* ... */};
+
+  return { isExpanded, handleToggle, handleEdit };
+}
+
+// ❌ Bad - keep in component if only used once
+export function EventCard({ event }: EventCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  // ... logic
+}
+```
+
+### When to Extract to Utility
+
+```typescript
+// ✅ Good - extract utility when used multiple times
+export function formatEventDate(date: Date): string {
+  return dayjs(date).format('DD.MM.YYYY HH:mm');
+}
+
+// Usage in multiple components
+formatEventDate(event.date);
+
+// ❌ Bad - keep inline if only used once
+const formattedDate = dayjs(event.date).format('DD.MM.YYYY HH:mm');
+```
+
+### When to Extract to Component
+
+```typescript
+// ✅ Good - extract component when reused
+export function EventCardHeader({ event }: { event: Event }) {
+  return (
+    <header>
+      <h3>{event.title}</h3>
+      <EventMeta event={event} />
+    </header>
+  );
+}
+
+// ❌ Bad - keep inline if only used once
+<header>
+  <h3>{event.title}</h3>
+  <div>{formatDate(event.date)}</div>
+</header>
+```
+
+## Component Reusability
+
+### Generic Components
+
+```typescript
+// ✅ Good - generic, reusable component
+interface ButtonProps {
+  children: React.ReactNode;
+  variant?: 'primary' | 'secondary';
+  size?: 'small' | 'medium' | 'large';
+  onClick?: () => void;
+}
+
+export function Button({ children, variant, size, onClick }: ButtonProps) {
+  return (
+    <button
+      className={clsx(styles.button, styles[variant], styles[size])}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ❌ Bad - too specific, not reusable
+export function CreateEventButton() {
+  return <button className={styles.createEvent}>Create Event</button>;
+}
+```
+
+### Composable Components
+
+```typescript
+// ✅ Good - composable component
+interface CardProps {
+  children: React.ReactNode;
+  header?: React.ReactNode;
+  footer?: React.ReactNode;
+}
+
+export function Card({ children, header, footer }: CardProps) {
+  return (
+    <div className={styles.card}>
+      {header && <header>{header}</header>}
+      <div className={styles.content}>{children}</div>
+      {footer && <footer>{footer}</footer>}
+    </div>
+  );
+}
+
+// ❌ Bad - rigid, not composable
+export function EventCard({ event }: { event: Event }) {
+  return (
+    <div className={styles.card}>
+      <header>{event.title}</header>
+      <div>{event.content}</div>
+      <footer>
+        <button>Edit</button>
+      </footer>
+    </div>
+  );
+}
+```
+
+## Hook Reusability
+
+### Generic Hooks
+
+```typescript
+// ✅ Good - generic hook
+export function useToggle(initialValue = false) {
+  const [value, setValue] = useState(initialValue);
+  const toggle = () => setValue((prev) => !prev);
+  return [value, toggle] as const;
+}
+
+// ❌ Bad - too specific
+export function useEventModal() {
+  const [isOpen, setIsOpen] = useState(false);
+  const toggle = () => setIsOpen((prev) => !prev);
+  return [isOpen, toggle] as const;
+}
+```
+
+### Specialized Hooks
+
+```typescript
+// ✅ Good - specialized hook using generic hooks
+export function useEventModal() {
+  const [isOpen, toggle] = useToggle();
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+
+  const open = (event: Event) => {
+    setSelectedEvent(event);
+    toggle();
+  };
+
+  const close = () => {
+    setSelectedEvent(null);
+    toggle();
+  };
+
+  return { isOpen, selectedEvent, open, close };
+}
+```
+
+## Utility Function Guidelines
+
+### Pure Functions
+
+```typescript
+// ✅ Good - pure function, easily testable
+export function formatDate(date: Date, format = 'DD.MM.YYYY'): string {
+  return dayjs(date).format(format);
+}
+
+// ❌ Bad - side effects, not reusable
+export function formatEventDate(event: Event): string {
+  console.log('Formatting date for event:', event.id);
+  return dayjs(event.date).format('DD.MM.YYYY');
+}
+```
+
+### Single Responsibility
+
+```typescript
+// ✅ Good - single responsibility
+export function validateEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+export function validateUrl(url: string): boolean {
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ❌ Bad - multiple responsibilities
+export function validateInput(input: string, type: 'email' | 'url'): boolean {
+  if (type === 'email') {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input);
+  }
+  try {
+    new URL(input);
+    return true;
+  } catch {
+    return false;
+  }
+}
+```
+
+## Avoiding Over-Abstraction
+
+### When Abstraction is Too Much
+
+```typescript
+// ❌ Bad - over-abstraction
+export function createHandler<T extends string>(
+  type: T,
+  callback: (event: Event) => void
+) {
+  return function handler(event: Event) {
+    if (event.type === type) {
+      callback(event);
+    }
+  };
+}
+
+// ✅ Good - simple and clear
+export function handleEventClick(event: Event) {
+  console.log('Event clicked:', event.id);
+}
+
+export function handleEventDelete(event: Event) {
+  deleteEvent(event.id);
+}
+```
+
+## Code Reusability Checklist
+
+- [ ] Code is duplicated in 2+ places before extracting
+- [ ] Abstraction improves readability
+- [ ] Shared code is truly generic
+- [ ] Components are composable
+- [ ] Hooks are reusable
+- [ ] Utilities are pure functions
+- [ ] Code follows single responsibility
+- [ ] Avoided premature abstraction
+- [ ] Code is testable
+- [ ] Documentation is clear

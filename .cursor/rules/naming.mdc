@@ -1,0 +1,56 @@
+---
+alwaysApply: true
+---
+
+# Naming Conventions
+
+## Files and Folders
+
+- Use **kebab-case** for all files and folders
+- Examples: `event-list/`, `create-event/`, `user-profile.tsx`
+
+## FSD Segment Files
+
+- Format: `name.type.extension`
+- Examples: `user.api.ts`, `user.routes.ts`, `calendar-event.queries.ts`
+
+## File Type Examples
+
+- API: `user.api.ts`, `task.routes.ts`
+- Models: `user.types.ts`, `task.schemas.ts`, `journal-entry.queries.ts`
+- UI: `event-card.tsx`, `task-item.module.css`
+
+## Component Naming
+
+- Use PascalCase for React components
+- Use descriptive names with auxiliary verbs (isLoading, hasError)
+- Event handlers should have "handle" prefix: `handleClick`, `handleKeyDown`
+
+## Variable and Function Naming
+
+- Use descriptive names with auxiliary verbs (isLoading, hasError)
+- Use functions declarations: `function Component() {}`
+- Use lowercase with dashes for directories and files
+
+## CSS Classes
+
+- Use CSS Modules
+- Use kebab-case for class names
+- Examples: `.container`, `.title`, `.description`
+
+## TypeScript Types and Interfaces
+
+- Use PascalCase for types and interfaces
+- Use descriptive names: `Event`, `TaskStatus`, `UserProfile`
+- Use suffix for specific types: `EventFormData`, `ApiResponse<T>`
+
+## Constants
+
+- Use UPPER_SNAKE_CASE for constants
+- Examples: `API_BASE_URL`, `DEFAULT_THEME`, `MAX_TITLE_LENGTH`
+
+## Enum-like Objects
+
+- Use PascalCase for keys
+- Use descriptive names: `TaskPriority`, `EventType`
+- Prefer const objects over enums

@@ -1,0 +1,165 @@
+---
+alwaysApply: true
+---
+
+# Security Guidelines
+
+## Authentication
+
+- Implement proper JWT handling
+- Use secure cookie storage
+- Implement proper logout functionality
+- Use refresh tokens for long-term sessions
+- Implement rate limiting for auth endpoints
+
+## Data Validation
+
+- Always validate data with Zod schemas
+- Sanitize user inputs
+- Implement proper error handling
+- Validate file uploads
+- Check data types and formats
+
+## API Security
+
+- Use HTTPS for all API calls
+- Implement proper CORS policies
+- Validate all API responses
+- Use API rate limiting
+- Implement request size limits
+
+## Environment Variables
+
+- Never commit sensitive data
+- Use proper environment variable naming
+- Implement proper secret management
+- Use different secrets for different environments
+- Rotate secrets regularly
+
+## XSS Prevention
+
+- Sanitize user-generated content
+- Use proper HTML escaping
+- Implement Content Security Policy (CSP)
+- Use React's built-in XSS protection
+- Validate and sanitize URLs
+
+## CSRF Protection
+
+- Use CSRF tokens for state-changing operations
+- Implement proper token validation
+- Use SameSite cookie attributes
+- Validate request origins
+
+## Input Sanitization
+
+```typescript
+import DOMPurify from 'dompurify';
+
+// Sanitize HTML content
+function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html);
+}
+
+// Validate file uploads
+function validateFile(file: File): boolean {
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+  const maxSize = 5 * 1024 * 1024; // 5MB
+
+  return allowedTypes.includes(file.type) && file.size <= maxSize;
+}
+```
+
+## API Security Patterns
+
+```typescript
+// Rate limiting middleware
+const rateLimit = {
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+};
+
+// Input validation
+function validateInput(data: unknown) {
+  const schema = z.object({
+    title: z.string().min(1).max(100),
+    content: z.string().min(1).max(10000),
+    tags: z.array(z.string()).max(10),
+  });
+
+  return schema.parse(data);
+}
+```
+
+## Secure Headers
+
+```typescript
+// Security headers configuration
+const securityHeaders = {
+  'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'",
+  'X-Frame-Options': 'DENY',
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+};
+```
+
+## Password Security
+
+- Use strong password requirements
+- Implement password hashing (bcrypt)
+- Use salt for password hashing
+- Implement password reset functionality
+- Store passwords securely
+
+## Session Management
+
+- Use secure session cookies
+- Implement session timeout
+- Invalidate sessions on logout
+- Use secure session storage
+- Implement session regeneration
+
+## Error Handling
+
+- Don't expose sensitive information in errors
+- Log errors securely
+- Use generic error messages for users
+- Implement proper error boundaries
+
+## File Upload Security
+
+- Validate file types and sizes
+- Scan uploaded files for malware
+- Store files securely
+- Use secure file serving
+- Implement file access controls
+
+## Database Security
+
+- Use parameterized queries
+- Implement proper access controls
+- Encrypt sensitive data
+- Use connection pooling
+- Implement database backups
+
+## Monitoring and Logging
+
+- Log security events
+- Monitor for suspicious activity
+- Implement intrusion detection
+- Track failed login attempts
+- Monitor API usage patterns
+
+## Security Checklist
+
+- [ ] Implement authentication
+- [ ] Validate all inputs
+- [ ] Use HTTPS
+- [ ] Implement CORS
+- [ ] Sanitize user content
+- [ ] Use secure headers
+- [ ] Implement rate limiting
+- [ ] Secure file uploads
+- [ ] Monitor security events
+- [ ] Regular security audits

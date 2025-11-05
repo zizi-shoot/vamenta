@@ -1,0 +1,593 @@
+---
+alwaysApply: true
+---
+
+# Form Handling Patterns
+
+## React Hook Form + Zod Setup
+
+### Basic Form Setup
+
+```typescript
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+const EventSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(100, 'Title is too long'),
+  content: z.string().min(1, 'Content is required'),
+  date: z.string().datetime(),
+  tags: z.array(z.string()).optional(),
+});
+
+type EventFormData = z.infer<typeof EventSchema>;
+
+export function EventForm() {
+  const form = useForm<EventFormData>({
+    resolver: zodResolver(EventSchema),
+    defaultValues: {
+      title: '',
+      content: '',
+      tags: [],
+    },
+  });
+
+  const onSubmit = form.handleSubmit((data) => {
+    console.log(data);
+  });
+
+  return (
+    <form onSubmit={onSubmit}>
+      {/* Form fields */}
+    </form>
+  );
+}
+```
+
+### Form with Default Values
+
+```typescript
+export function EventForm({ event }: { event?: Event }) {
+  const form = useForm<EventFormData>({
+    resolver: zodResolver(EventSchema),
+    defaultValues: event ? {
+      title: event.title,
+      content: event.content,
+      date: event.date,
+      tags: event.tags,
+    } : {
+      title: '',
+      content: '',
+      tags: [],
+    },
+  });
+
+  const onSubmit = form.handleSubmit((data) => {
+    if (event) {
+      updateEvent(event.id, data);
+    } else {
+      createEvent(data);
+    }
+  });
+
+  return <form onSubmit={onSubmit}>...</form>;
+}
+```
+
+## Form Field Patterns
+
+### Input Field
+
+```typescript
+interface InputFieldProps {
+  label: string;
+  name: keyof EventFormData;
+  form: UseFormReturn<EventFormData>;
+  type?: string;
+  placeholder?: string;
+}
+
+export function InputField({ label, name, form, type = 'text', placeholder }: InputFieldProps) {
+  const {
+    register,
+    formState: { errors },
+  } = form;
+
+  return (
+    <div>
+      <label htmlFor={name}>
+        {label}
+        {form.formState.errors[name] && (
+          <span aria-live="polite" role="alert">
+            {' '}
+            {form.formState.errors[name]?.message}
+          </span>
+        )}
+      </label>
+      <input
+        id={name}
+        type={type}
+        placeholder={placeholder}
+        aria-invalid={!!errors[name]}
+        aria-describedby={errors[name] ? `${name}-error` : undefined}
+        {...register(name)}
+      />
+      {errors[name] && (
+        <div id={`${name}-error`} role="alert" className={styles.error}>
+          {errors[name]?.message}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+### Textarea Field
+
+```typescript
+export function TextareaField({ label, name, form }: InputFieldProps) {
+  const {
+    register,
+    formState: { errors },
+  } = form;
+
+  return (
+    <div>
+      <label htmlFor={name}>
+        {label}
+        {errors[name] && (
+          <span aria-live="polite" role="alert">{' '}{errors[name]?.message}</span>
+        )}
+      </label>
+      <textarea
+        id={name}
+        aria-invalid={!!errors[name]}
+        aria-describedby={errors[name] ? `${name}-error` : undefined}
+        {...register(name)}
+      />
+      {errors[name] && (
+        <div id={`${name}-error`} role="alert" className={styles.error}>
+          {errors[name]?.message}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+### Select Field
+
+```typescript
+interface SelectFieldProps extends InputFieldProps {
+  options: { value: string; label: string }[];
+}
+
+export function SelectField({ label, name, form, options }: SelectFieldProps) {
+  const {
+    register,
+    formState: { errors },
+  } = form;
+
+  return (
+    <div>
+      <label htmlFor={name}>
+        {label}
+        {errors[name] && (
+          <span aria-live="polite" role="alert">{' '}{errors[name]?.message}</span>
+        )}
+      </label>
+      <select
+        id={name}
+        aria-invalid={!!errors[name]}
+        aria-describedby={errors[name] ? `${name}-error` : undefined}
+        {...register(name)}
+      >
+        <option value="">Select...</option>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      {errors[name] && (
+        <div id={`${name}-error`} role="alert" className={styles.error}>
+          {errors[name]?.message}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+### Checkbox Field
+
+```typescript
+export function CheckboxField({ label, name, form }: InputFieldProps) {
+  const {
+    register,
+    formState: { errors },
+  } = form;
+
+  return (
+    <div>
+      <label>
+        <input
+          type="checkbox"
+          aria-invalid={!!errors[name]}
+          aria-describedby={errors[name] ? `${name}-error` : undefined}
+          {...register(name)}
+        />
+        {label}
+      </label>
+      {errors[name] && (
+        <div id={`${name}-error`} role="alert" className={styles.error}>
+          {errors[name]?.message}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## Form Hook Pattern
+
+### Custom Form Hook
+
+```typescript
+export function useEventForm(event?: Event) {
+  const form = useForm<EventFormData>({
+    resolver: zodResolver(EventSchema),
+    defaultValues: event ? {
+      title: event.title,
+      content: event.content,
+      date: event.date,
+      tags: event.tags,
+    } : {
+      title: '',
+      content: '',
+      tags: [],
+    },
+  });
+
+  const createMutation = useCreateEvent();
+  const updateMutation = useUpdateEvent();
+
+  const onSubmit = form.handleSubmit(async (data) => {
+    try {
+      if (event) {
+        await updateMutation.mutateAsync({ id: event.id, data });
+      } else {
+        await createMutation.mutateAsync(data);
+      }
+    } catch (error) {
+      // Handle server-side errors
+      if (isApiError(error) && error.errors) {
+        Object.entries(error.errors).forEach(([field, messages]) => {
+          form.setError(field as keyof EventFormData, {
+            type: 'server',
+            message: messages[0],
+          });
+        });
+      } else {
+        form.setError('root', {
+          type: 'server',
+          message: getErrorMessage(error),
+        });
+      }
+    }
+  });
+
+  return {
+    form,
+    onSubmit,
+    isLoading: createMutation.isPending || updateMutation.isPending,
+    error: createMutation.error || updateMutation.error,
+  };
+}
+```
+
+## Async Validation
+
+### Async Field Validation
+
+```typescript
+const EventSchema = z.object({
+  title: z.string().min(1, 'Title is required'),
+  slug: z.string().min(1, 'Slug is required'),
+});
+
+export function useEventForm() {
+  const form = useForm<EventFormData>({
+    resolver: zodResolver(EventSchema),
+  });
+
+  // Async validation for slug uniqueness
+  const validateSlug = async (slug: string) => {
+    const isUnique = await checkSlugUniqueness(slug);
+    if (!isUnique) {
+      return 'This slug is already taken';
+    }
+    return true;
+  };
+
+  return (
+    <form>
+      <input {...form.register('title')} />
+      <input
+        {...form.register('slug', {
+          validate: validateSlug,
+        })}
+      />
+    </form>
+  );
+}
+```
+
+### Debounced Async Validation
+
+```typescript
+export function useEventForm() {
+  const form = useForm<EventFormData>();
+  const [slugValue, setSlugValue] = useState('');
+  const debouncedSlug = useDebounce(slugValue, 500);
+
+  useEffect(() => {
+    if (debouncedSlug) {
+      checkSlugUniqueness(debouncedSlug).then((isUnique) => {
+        if (!isUnique) {
+          form.setError('slug', {
+            type: 'validate',
+            message: 'This slug is already taken',
+          });
+        } else {
+          form.clearErrors('slug');
+        }
+      });
+    }
+  }, [debouncedSlug, form]);
+
+  return (
+    <form>
+      <input
+        {...form.register('slug')}
+        onChange={(e) => {
+          setSlugValue(e.target.value);
+          form.setValue('slug', e.target.value);
+        }}
+      />
+    </form>
+  );
+}
+```
+
+## Multi-Step Forms
+
+### Wizard Form Pattern
+
+```typescript
+interface WizardFormProps {
+  steps: React.ReactNode[];
+}
+
+export function WizardForm({ steps }: WizardFormProps) {
+  const [currentStep, setCurrentStep] = useState(0);
+  const form = useForm<EventFormData>();
+
+  const next = form.handleSubmit(() => {
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(currentStep + 1);
+    }
+  });
+
+  const previous = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const onSubmit = form.handleSubmit((data) => {
+    console.log('Final submit', data);
+  });
+
+  return (
+    <form onSubmit={currentStep === steps.length - 1 ? onSubmit : next}>
+      {steps[currentStep]}
+      <div>
+        {currentStep > 0 && (
+          <button type="button" onClick={previous}>
+            Previous
+          </button>
+        )}
+        <button type="submit">
+          {currentStep === steps.length - 1 ? 'Submit' : 'Next'}
+        </button>
+      </div>
+    </form>
+  );
+}
+```
+
+## Dynamic Fields
+
+### Array Field Pattern
+
+```typescript
+export function TagsField({ form }: { form: UseFormReturn<EventFormData> }) {
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'tags',
+  });
+
+  return (
+    <div>
+      <label>Tags</label>
+      {fields.map((field, index) => (
+        <div key={field.id}>
+          <input {...form.register(`tags.${index}`)} />
+          <button type="button" onClick={() => remove(index)}>
+            Remove
+          </button>
+        </div>
+      ))}
+      <button type="button" onClick={() => append('')}>
+        Add Tag
+      </button>
+    </div>
+  );
+}
+```
+
+## Form Submission
+
+### Submission with Loading State
+
+```typescript
+export function EventForm() {
+  const form = useEventForm();
+  const { isLoading, error } = form;
+
+  return (
+    <form onSubmit={form.onSubmit}>
+      <InputField name="title" label="Title" form={form.form} />
+      <TextareaField name="content" label="Content" form={form.form} />
+
+      {error && (
+        <div role="alert" className={styles.error}>
+          {getErrorMessage(error)}
+        </div>
+      )}
+
+      <button type="submit" disabled={isLoading}>
+        {isLoading ? 'Saving...' : 'Save'}
+      </button>
+    </form>
+  );
+}
+```
+
+### Submission with Success State
+
+```typescript
+export function useEventForm() {
+  const form = useForm<EventFormData>({
+    resolver: zodResolver(EventSchema),
+  });
+
+  const createMutation = useCreateEvent();
+  const [isSuccess, setIsSuccess] = useState(false);
+
+  const onSubmit = form.handleSubmit(async (data) => {
+    try {
+      await createMutation.mutateAsync(data);
+      setIsSuccess(true);
+      form.reset();
+      setTimeout(() => setIsSuccess(false), 3000);
+    } catch (error) {
+      // Handle error
+    }
+  });
+
+  return {
+    form,
+    onSubmit,
+    isLoading: createMutation.isPending,
+    isSuccess,
+  };
+}
+```
+
+## Form Reset
+
+### Reset After Submission
+
+```typescript
+export function useEventForm() {
+  const form = useForm<EventFormData>({
+    resolver: zodResolver(EventSchema),
+  });
+
+  const createMutation = useCreateEvent();
+
+  const onSubmit = form.handleSubmit(async (data) => {
+    try {
+      await createMutation.mutateAsync(data);
+      form.reset(); // Reset form after successful submission
+    } catch (error) {
+      // Handle error
+    }
+  });
+
+  return { form, onSubmit };
+}
+```
+
+### Reset to Specific Values
+
+```typescript
+export function useEventForm(event?: Event) {
+  const form = useForm<EventFormData>({
+    resolver: zodResolver(EventSchema),
+    defaultValues: event,
+  });
+
+  // Reset form when event changes
+  useEffect(() => {
+    if (event) {
+      form.reset(event);
+    }
+  }, [event, form]);
+
+  return { form };
+}
+```
+
+## Form Validation Patterns
+
+### Conditional Validation
+
+```typescript
+const EventSchema = z.object({
+  type: z.enum(['public', 'private']),
+  password: z.string().optional(),
+}).refine(
+  (data) => {
+    if (data.type === 'private' && !data.password) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: 'Password is required for private events',
+    path: ['password'],
+  }
+);
+```
+
+### Cross-Field Validation
+
+```typescript
+const EventSchema = z
+  .object({
+    startDate: z.string().datetime(),
+    endDate: z.string().datetime(),
+  })
+  .refine((data) => new Date(data.endDate) > new Date(data.startDate), {
+    message: 'End date must be after start date',
+    path: ['endDate'],
+  });
+```
+
+## Form Checklist
+
+- [ ] Use React Hook Form for form state management
+- [ ] Use Zod for validation schemas
+- [ ] Use zodResolver for form validation
+- [ ] Implement proper error display for fields
+- [ ] Handle server-side validation errors
+- [ ] Implement loading states during submission
+- [ ] Implement success states after submission
+- [ ] Reset form after successful submission
+- [ ] Implement proper accessibility (aria-labels, aria-invalid)
+- [ ] Handle async validation where needed
+- [ ] Implement proper form reset logic
+- [ ] Test form validation and submission

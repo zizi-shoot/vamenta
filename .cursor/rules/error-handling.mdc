@@ -1,0 +1,431 @@
+---
+alwaysApply: true
+---
+
+# Error Handling & Logging
+
+## Error Types
+
+### API Errors
+
+```typescript
+export interface ApiError {
+  message: string;
+  status: number;
+  code?: string;
+  errors?: Record<string, string[]>;
+}
+
+export function isApiError(error: unknown): error is ApiError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    'status' in error
+  );
+}
+```
+
+### Validation Errors
+
+```typescript
+export interface ValidationError {
+  field: string;
+  message: string;
+}
+
+export function isValidationError(error: unknown): error is ValidationError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'field' in error &&
+    'message' in error
+  );
+}
+```
+
+## Centralized Error Handling
+
+### Error Handler Utility
+
+```typescript
+export function handleError(error: unknown): string {
+  if (isApiError(error)) {
+    return error.message || 'An error occurred';
+  }
+
+  if (isValidationError(error)) {
+    return error.message;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return 'An unexpected error occurred';
+}
+```
+
+### Error Boundary Component
+
+```typescript
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+export class ErrorBoundary extends React.Component<
+  React.PropsWithChildren<{}>,
+  ErrorBoundaryState
+> {
+  constructor(props: React.PropsWithChildren<{}>) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Log error to monitoring service
+    logError(error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <ErrorFallback error={this.state.error} />;
+    }
+
+    return this.props.children;
+  }
+}
+```
+
+### Error Fallback Component
+
+```typescript
+interface ErrorFallbackProps {
+  error: Error | null;
+  resetErrorBoundary?: () => void;
+}
+
+export function ErrorFallback({ error, resetErrorBoundary }: ErrorFallbackProps) {
+  return (
+    <div role="alert" className={styles.errorBoundary}>
+      <h2>Something went wrong</h2>
+      <pre>{error?.message}</pre>
+      {resetErrorBoundary && (
+        <button onClick={resetErrorBoundary}>Try again</button>
+      )}
+    </div>
+  );
+}
+```
+
+## API Error Handling
+
+### Axios Error Handling
+
+```typescript
+export function handleApiError(error: unknown): ApiError {
+  if (axios.isAxiosError(error)) {
+    const apiError: ApiError = {
+      message: error.response?.data?.message || error.message || 'An error occurred',
+      status: error.response?.status || 500,
+      code: error.response?.data?.code,
+      errors: error.response?.data?.errors,
+    };
+
+    // Log error
+    logError('API Error', {
+      endpoint: error.config?.url,
+      method: error.config?.method,
+      status: apiError.status,
+      message: apiError.message,
+    });
+
+    return apiError;
+  }
+
+  return {
+    message: 'An unexpected error occurred',
+    status: 500,
+  };
+}
+```
+
+### React Query Error Handling
+
+```typescript
+export function useEvents() {
+  return useQuery({
+    queryKey: ['events'],
+    queryFn: async () => {
+      try {
+        return await getEvents();
+      } catch (error) {
+        const apiError = handleApiError(error);
+        throw apiError;
+      }
+    },
+    retry: (failureCount, error) => {
+      // Don't retry on 4xx errors
+      if (isApiError(error) && error.status >= 400 && error.status < 500) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+}
+```
+
+## User-Friendly Error Messages
+
+### Error Message Mapping
+
+```typescript
+const ERROR_MESSAGES: Record<number, string> = {
+  400: 'Invalid request. Please check your input.',
+  401: 'You are not authorized. Please sign in.',
+  403: 'You do not have permission to perform this action.',
+  404: 'The requested resource was not found.',
+  409: 'This resource already exists.',
+  422: 'Validation failed. Please check your input.',
+  429: 'Too many requests. Please try again later.',
+  500: 'Server error. Please try again later.',
+  503: 'Service unavailable. Please try again later.',
+};
+
+export function getErrorMessage(error: unknown): string {
+  if (isApiError(error)) {
+    return ERROR_MESSAGES[error.status] || error.message || 'An error occurred';
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return 'An unexpected error occurred';
+}
+```
+
+### Error Display in Components
+
+```typescript
+export function EventList() {
+  const { data, error, isLoading } = useEvents();
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (error) {
+    return (
+      <Alert variant="error" role="alert">
+        <AlertTitle>Failed to load events</AlertTitle>
+        <AlertDescription>{getErrorMessage(error)}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  return <EventGrid events={data} />;
+}
+```
+
+## Logging
+
+### Logger Utility
+
+```typescript
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+interface LogContext {
+  [key: string]: unknown;
+}
+
+export function log(level: LogLevel, message: string, context?: LogContext) {
+  if (process.env.NODE_ENV === 'development') {
+    console[level](`[${level.toUpperCase()}]`, message, context || '');
+  }
+
+  // Send to logging service in production
+  if (process.env.NODE_ENV === 'production') {
+    // Send to Sentry, LogRocket, etc.
+    sendToLoggingService(level, message, context);
+  }
+}
+
+export function logError(error: Error, context?: LogContext) {
+  log('error', error.message, {
+    ...context,
+    stack: error.stack,
+    name: error.name,
+  });
+}
+
+export function logInfo(message: string, context?: LogContext) {
+  log('info', message, context);
+}
+
+export function logWarn(message: string, context?: LogContext) {
+  log('warn', message, context);
+}
+
+export function logDebug(message: string, context?: LogContext) {
+  log('debug', message, context);
+}
+```
+
+### Logging in Components
+
+```typescript
+export function EventForm() {
+  const createMutation = useCreateEvent();
+
+  const handleSubmit = async (data: EventFormData) => {
+    try {
+      logInfo('Creating event', { title: data.title });
+      await createMutation.mutateAsync(data);
+      logInfo('Event created successfully', { title: data.title });
+    } catch (error) {
+      logError(error instanceof Error ? error : new Error('Unknown error'), {
+        title: data.title,
+      });
+    }
+  };
+
+  return <form onSubmit={handleSubmit}>...</form>;
+}
+```
+
+## Form Error Handling
+
+### React Hook Form Error Handling
+
+```typescript
+export function useEventForm() {
+  const form = useForm<EventFormData>({
+    resolver: zodResolver(EventSchema),
+  });
+
+  const createMutation = useCreateEvent();
+
+  const onSubmit = form.handleSubmit(async (data) => {
+    try {
+      await createMutation.mutateAsync(data);
+    } catch (error) {
+      if (isApiError(error) && error.errors) {
+        // Set field-specific errors
+        Object.entries(error.errors).forEach(([field, messages]) => {
+          form.setError(field as keyof EventFormData, {
+            type: 'server',
+            message: messages[0],
+          });
+        });
+      } else {
+        // Set general form error
+        form.setError('root', {
+          type: 'server',
+          message: getErrorMessage(error),
+        });
+      }
+    }
+  });
+
+  return { form, onSubmit };
+}
+```
+
+## Network Error Handling
+
+### Offline Detection
+
+```typescript
+export function useNetworkStatus() {
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  return isOnline;
+}
+```
+
+### Retry Logic
+
+```typescript
+export function useEvents() {
+  return useQuery({
+    queryKey: ['events'],
+    queryFn: getEvents,
+    retry: (failureCount, error) => {
+      // Don't retry on network errors if offline
+      if (!navigator.onLine) {
+        return false;
+      }
+
+      // Don't retry on 4xx errors
+      if (isApiError(error) && error.status >= 400 && error.status < 500) {
+        return false;
+      }
+
+      return failureCount < 3;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+  });
+}
+```
+
+## Error Recovery
+
+### Retry Mechanism
+
+```typescript
+export function useRetryableQuery<T>(
+  queryKey: QueryKey,
+  queryFn: QueryFunction<T>
+) {
+  const [retryCount, setRetryCount] = useState(0);
+
+  const query = useQuery({
+    queryKey,
+    queryFn,
+    retry: false, // Disable automatic retry
+  });
+
+  const retry = useCallback(() => {
+    setRetryCount((prev) => prev + 1);
+    query.refetch();
+  }, [query]);
+
+  return {
+    ...query,
+    retry,
+    retryCount,
+  };
+}
+```
+
+## Error Checklist
+
+- [ ] All errors are properly typed
+- [ ] User-friendly error messages are displayed
+- [ ] Errors are logged for debugging
+- [ ] Error boundaries are implemented
+- [ ] API errors are handled consistently
+- [ ] Form validation errors are displayed
+- [ ] Network errors are handled
+- [ ] Retry logic is implemented where appropriate
+- [ ] Error recovery mechanisms are in place
+- [ ] Sensitive information is not exposed in errors

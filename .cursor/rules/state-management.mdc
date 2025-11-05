@@ -1,0 +1,417 @@
+---
+alwaysApply: true
+---
+
+# State Management Patterns
+
+## When to Use Which State Solution
+
+### Zustand (Global Client State)
+- User preferences (theme, language, settings)
+- UI state that needs to be shared (modals, sidebar state)
+- Authentication state
+- Shopping cart, temporary selections
+- Complex client-side state that doesn't come from server
+
+### React Query (Server State)
+- Data fetched from API
+- Cached server responses
+- Optimistic updates
+- Background refetching
+- Any data that syncs with backend
+
+### Local State (useState/useReducer)
+- Component-specific state
+- Form input values
+- UI state that doesn't need to be shared
+- Temporary calculations
+- State that doesn't need persistence
+
+## Zustand Patterns
+
+### Basic Store Structure
+
+```typescript
+import { create } from 'zustand';
+
+interface AuthState {
+  user: User | null;
+  isAuthenticated: boolean;
+  login: (user: User) => void;
+  logout: () => void;
+}
+
+export const useAuthStore = create<AuthState>((set) => ({
+  user: null,
+  isAuthenticated: false,
+  login: (user) => set({ user, isAuthenticated: true }),
+  logout: () => set({ user: null, isAuthenticated: false }),
+}));
+```
+
+### Store with Actions
+
+```typescript
+interface EventFilterState {
+  filters: EventFilters;
+  setFilters: (filters: EventFilters) => void;
+  resetFilters: () => void;
+  updateFilter: <K extends keyof EventFilters>(key: K, value: EventFilters[K]) => void;
+}
+
+const defaultFilters: EventFilters = {
+  search: '',
+  category: null,
+  dateRange: null,
+};
+
+export const useEventFilterStore = create<EventFilterState>((set) => ({
+  filters: defaultFilters,
+  setFilters: (filters) => set({ filters }),
+  resetFilters: () => set({ filters: defaultFilters }),
+  updateFilter: (key, value) =>
+    set((state) => ({
+      filters: { ...state.filters, [key]: value },
+    })),
+}));
+```
+
+### Store with Async Actions
+
+```typescript
+interface AuthState {
+  user: User | null;
+  isLoading: boolean;
+  error: string | null;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
+  user: null,
+  isLoading: false,
+  error: null,
+  login: async (email, password) => {
+    set({ isLoading: true, error: null });
+    try {
+      const user = await loginApi(email, password);
+      set({ user, isLoading: false });
+    } catch (error) {
+      set({ error: handleError(error), isLoading: false });
+    }
+  },
+  logout: async () => {
+    set({ isLoading: true });
+    try {
+      await logoutApi();
+      set({ user: null, isLoading: false });
+    } catch (error) {
+      set({ error: handleError(error), isLoading: false });
+    }
+  },
+}));
+```
+
+### Store with Persistence
+
+```typescript
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+interface PreferencesState {
+  theme: 'light' | 'dark';
+  language: string;
+  setTheme: (theme: 'light' | 'dark') => void;
+  setLanguage: (language: string) => void;
+}
+
+export const usePreferencesStore = create<PreferencesState>()(
+  persist(
+    (set) => ({
+      theme: 'light',
+      language: 'en',
+      setTheme: (theme) => set({ theme }),
+      setLanguage: (language) => set({ language }),
+    }),
+    {
+      name: 'preferences-storage',
+    }
+  )
+);
+```
+
+### Selective Subscriptions
+
+```typescript
+// ✅ Good - subscribe only to needed state
+export function UserProfile() {
+  const user = useAuthStore((state) => state.user);
+  const login = useAuthStore((state) => state.login);
+
+  return <div>{user?.name}</div>;
+}
+
+// ❌ Bad - subscribe to entire store
+export function UserProfile() {
+  const { user, login, logout, isLoading, error } = useAuthStore();
+  return <div>{user?.name}</div>;
+}
+```
+
+### Custom Hook Wrapper
+
+```typescript
+export function useAuth() {
+  const user = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const login = useAuthStore((state) => state.login);
+  const logout = useAuthStore((state) => state.logout);
+
+  return {
+    user,
+    isAuthenticated,
+    login,
+    logout,
+  };
+}
+```
+
+## React Query Patterns
+
+### Server State Management
+
+```typescript
+// Server state should be managed by React Query
+export function useEvents() {
+  return useQuery({
+    queryKey: ['events'],
+    queryFn: getEvents,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+```
+
+### Optimistic Updates
+
+```typescript
+export function useUpdateEvent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: updateEvent,
+    onMutate: async (newEvent) => {
+      await queryClient.cancelQueries({ queryKey: ['events'] });
+
+      const previousEvents = queryClient.getQueryData(['events']);
+
+      queryClient.setQueryData(['events'], (old: Event[]) =>
+        old.map((event) => (event.id === newEvent.id ? { ...event, ...newEvent } : event))
+      );
+
+      return { previousEvents };
+    },
+    onError: (err, newEvent, context) => {
+      queryClient.setQueryData(['events'], context?.previousEvents);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+    },
+  });
+}
+```
+
+### Cache Management
+
+```typescript
+// Invalidate cache after mutation
+export function useCreateEvent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: createEvent,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+    },
+  });
+}
+
+// Update cache directly
+export function useUpdateEvent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: updateEvent,
+    onSuccess: (updatedEvent) => {
+      queryClient.setQueryData(['events', updatedEvent.id], updatedEvent);
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+    },
+  });
+}
+```
+
+## State Composition
+
+### Combining Zustand and React Query
+
+```typescript
+export function useEventManagement() {
+  // Server state from React Query
+  const { data: events, isLoading } = useEvents();
+
+  // Client state from Zustand
+  const filters = useEventFilterStore((state) => state.filters);
+  const setFilters = useEventFilterStore((state) => state.setFilters);
+
+  // Computed state
+  const filteredEvents = useMemo(() => {
+    if (!events) return [];
+    return filterEvents(events, filters);
+  }, [events, filters]);
+
+  return {
+    events: filteredEvents,
+    isLoading,
+    filters,
+    setFilters,
+  };
+}
+```
+
+## Local State Patterns
+
+### Simple useState
+
+```typescript
+export function EventForm() {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [formData, setFormData] = useState<EventFormData>({
+    title: '',
+    content: '',
+  });
+
+  return (
+    <form>
+      <button type="button" onClick={() => setIsExpanded(!isExpanded)}>
+        {isExpanded ? 'Collapse' : 'Expand'}
+      </button>
+      {/* Form fields */}
+    </form>
+  );
+}
+```
+
+### useReducer for Complex State
+
+```typescript
+interface ModalState {
+  isOpen: boolean;
+  type: 'create' | 'edit' | 'delete' | null;
+  data: Event | null;
+}
+
+type ModalAction =
+  | { type: 'OPEN_CREATE' }
+  | { type: 'OPEN_EDIT'; payload: Event }
+  | { type: 'OPEN_DELETE'; payload: Event }
+  | { type: 'CLOSE' };
+
+function modalReducer(state: ModalState, action: ModalAction): ModalState {
+  switch (action.type) {
+    case 'OPEN_CREATE':
+      return { isOpen: true, type: 'create', data: null };
+    case 'OPEN_EDIT':
+      return { isOpen: true, type: 'edit', data: action.payload };
+    case 'OPEN_DELETE':
+      return { isOpen: true, type: 'delete', data: action.payload };
+    case 'CLOSE':
+      return { isOpen: false, type: null, data: null };
+    default:
+      return state;
+  }
+}
+
+export function useModal() {
+  const [state, dispatch] = useReducer(modalReducer, {
+    isOpen: false,
+    type: null,
+    data: null,
+  });
+
+  return {
+    ...state,
+    openCreate: () => dispatch({ type: 'OPEN_CREATE' }),
+    openEdit: (event: Event) => dispatch({ type: 'OPEN_EDIT', payload: event }),
+    openDelete: (event: Event) => dispatch({ type: 'OPEN_DELETE', payload: event }),
+    close: () => dispatch({ type: 'CLOSE' }),
+  };
+}
+```
+
+## State Derivation
+
+### Computed Values
+
+```typescript
+export function useEventStats(events: Event[]) {
+  const stats = useMemo(() => {
+    return {
+      total: events.length,
+      upcoming: events.filter((e) => new Date(e.date) > new Date()).length,
+      past: events.filter((e) => new Date(e.date) <= new Date()).length,
+    };
+  }, [events]);
+
+  return stats;
+}
+```
+
+### Derived State with Selectors
+
+```typescript
+// Zustand selector
+export const useUpcomingEvents = () =>
+  useEventsStore((state) => state.events.filter((e) => new Date(e.date) > new Date()));
+
+// React Query selector
+export function useUpcomingEvents() {
+  const { data: events } = useEvents();
+
+  return useMemo(() => {
+    if (!events) return [];
+    return events.filter((e) => new Date(e.date) > new Date());
+  }, [events]);
+}
+```
+
+## State Migration
+
+### Moving State Up
+
+```typescript
+// When state is needed in multiple components, move to shared location
+// ✅ Good - shared state
+export function useEventFilters() {
+  return useEventFilterStore((state) => state);
+}
+
+// ❌ Bad - duplicated state in each component
+export function EventList() {
+  const [filters, setFilters] = useState<EventFilters>({});
+  // ...
+}
+```
+
+## State Management Checklist
+
+- [ ] Use Zustand for global client state
+- [ ] Use React Query for server state
+- [ ] Use local state (useState) for component-specific state
+- [ ] Use useReducer for complex local state
+- [ ] Implement proper state persistence where needed
+- [ ] Use selective subscriptions in Zustand
+- [ ] Implement optimistic updates for mutations
+- [ ] Manage cache properly with React Query
+- [ ] Derive computed values with useMemo
+- [ ] Avoid prop drilling with Zustand
+- [ ] Keep state as close to usage as possible
+- [ ] Don't duplicate server state in client state

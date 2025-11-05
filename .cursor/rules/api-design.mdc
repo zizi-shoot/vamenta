@@ -1,0 +1,440 @@
+---
+alwaysApply: true
+---
+
+# API Design Patterns
+
+## API Client Structure
+
+- Use Axios for HTTP client
+- Create centralized API client with interceptors
+- Implement proper error handling at client level
+- Use React Query for data fetching and caching
+- Validate all API responses with Zod schemas
+
+## API Request Patterns
+
+```typescript
+// ✅ Good - separate API functions
+export function getEvents() {
+  return apiClient.get<Event[]>('/api/events', {
+    schema: EventListSchema
+  });
+}
+
+export function getEvent(id: string) {
+  return apiClient.get<Event>(`/api/events/${id}`, {
+    schema: EventSchema
+  });
+}
+
+export function createEvent(data: CreateEventData) {
+  return apiClient.post<Event>('/api/events', {
+    data,
+    schema: EventSchema,
+  });
+}
+
+export function updateEvent(id: string, data: UpdateEventData) {
+  return apiClient.patch<Event>(`/api/events/${id}`, {
+    data,
+    schema: EventSchema,
+  });
+}
+
+export function deleteEvent(id: string) {
+  return apiClient.delete(`/api/events/${id}`);
+}
+
+// ❌ Bad - object with methods
+export const eventApi = {
+  getEvents: () => apiClient.get<Event[]>('/api/events'),
+  getEvent: (id: string) => apiClient.get<Event>(`/api/events/${id}`),
+};
+```
+
+## React Query Patterns
+
+### Basic Query
+
+```typescript
+import { useQuery } from '@tanstack/react-query';
+import { getEvents } from '@/entities/event/api/event.api';
+
+export function useEvents() {
+  return useQuery({
+    queryKey: ['events'],
+    queryFn: getEvents,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+```
+
+### Mutation with Optimistic Updates
+
+```typescript
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { createEvent } from '@/entities/event/api/event.api';
+
+export function useCreateEvent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: createEvent,
+    onMutate: async (newEvent) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['events'] });
+
+      // Snapshot previous value
+      const previousEvents = queryClient.getQueryData(['events']);
+
+      // Optimistically update
+      queryClient.setQueryData(['events'], (old: Event[]) => [
+        ...old,
+        { ...newEvent, id: 'temp-id' },
+      ]);
+
+      return { previousEvents };
+    },
+    onError: (err, newEvent, context) => {
+      // Rollback on error
+      queryClient.setQueryData(['events'], context?.previousEvents);
+    },
+    onSettled: () => {
+      // Refetch after mutation
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+    },
+  });
+}
+```
+
+### Dependent Queries
+
+```typescript
+export function useEvent(id: string) {
+  return useQuery({
+    queryKey: ['events', id],
+    queryFn: () => getEvent(id),
+    enabled: !!id, // Only fetch if id exists
+  });
+}
+```
+
+### Parallel Queries
+
+```typescript
+export function useEventData(id: string) {
+  const eventQuery = useQuery({
+    queryKey: ['events', id],
+    queryFn: () => getEvent(id),
+  });
+
+  const relatedQuery = useQuery({
+    queryKey: ['events', id, 'related'],
+    queryFn: () => getRelatedEvents(id),
+    enabled: !!eventQuery.data, // Only fetch if event exists
+  });
+
+  return {
+    event: eventQuery.data,
+    related: relatedQuery.data,
+    isLoading: eventQuery.isLoading || relatedQuery.isLoading,
+  };
+}
+```
+
+## Error Handling
+
+### API Error Types
+
+```typescript
+export interface ApiError {
+  message: string;
+  status: number;
+  code?: string;
+  errors?: Record<string, string[]>;
+}
+
+// Error handling in API client
+export function handleApiError(error: unknown): ApiError {
+  if (axios.isAxiosError(error)) {
+    return {
+      message: error.response?.data?.message || error.message,
+      status: error.response?.status || 500,
+      code: error.response?.data?.code,
+      errors: error.response?.data?.errors,
+    };
+  }
+
+  return {
+    message: 'An unexpected error occurred',
+    status: 500,
+  };
+}
+```
+
+### Error Handling in Components
+
+```typescript
+export function useEvents() {
+  const query = useQuery({
+    queryKey: ['events'],
+    queryFn: getEvents,
+    retry: (failureCount, error) => {
+      // Don't retry on 4xx errors
+      if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+
+  return query;
+}
+```
+
+## Token Management
+
+### Token Storage Strategy
+
+- **Access Token**: Stored in application memory (Zustand store, React state, etc.) - never in localStorage
+- **Refresh Token**: Stored in HTTP-only cookies, automatically sent by browser
+- **Token Refresh**: Handled automatically by response interceptor on 401 errors
+
+### Token Store Example (Zustand)
+
+```typescript
+interface AuthState {
+  accessToken: string | null;
+  setAccessToken: (token: string | null) => void;
+  clearAuth: () => void;
+}
+
+export const useAuthStore = create<AuthState>((set) => ({
+  accessToken: null,
+  setAccessToken: (token) => set({ accessToken: token }),
+  clearAuth: () => set({ accessToken: null }),
+}));
+
+// Helper functions for interceptors
+export function getAccessToken(): string | null {
+  return useAuthStore.getState().accessToken;
+}
+
+export function setAccessToken(token: string | null): void {
+  useAuthStore.getState().setAccessToken(token);
+}
+```
+
+### Refresh Token Function
+
+```typescript
+export async function refreshAccessToken(): Promise<string> {
+  // Refresh token is automatically sent via cookies
+  // withCredentials should be set globally in apiClient config
+  const response = await apiClient.post<{ accessToken: string }>('/api/auth/refresh');
+
+  return response.data.accessToken;
+}
+```
+
+**Note:** Make sure `withCredentials: true` is set in your Axios client configuration so cookies are automatically sent with requests.
+
+## Request Interceptors
+
+```typescript
+// Add access token to requests from memory
+apiClient.interceptors.request.use((config) => {
+  const accessToken = getAccessToken(); // Get from in-memory store (Zustand, etc.)
+  if (accessToken) {
+    config.headers.Authorization = `Bearer ${accessToken}`;
+  }
+  return config;
+});
+```
+
+## Response Interceptors
+
+```typescript
+// Handle response errors and token refresh
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    // If 401 and not already retried
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      try {
+        // Try to refresh access token using refresh token from cookies
+        const newAccessToken = await refreshAccessToken();
+
+        // Store new token in memory
+        setAccessToken(newAccessToken);
+
+        // Update authorization header and retry original request
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        // Refresh failed, redirect to login
+        await logout();
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+```
+
+**Note:** Access token is stored in application memory (e.g., Zustand store) and added to requests via Authorization header. Refresh token is stored in HTTP-only cookies and used automatically for token refresh. The frontend should not store tokens in localStorage.
+
+## Response Validation
+
+### Zod Schema Validation
+
+```typescript
+import { z } from 'zod';
+
+export const EventSchema = z.object({
+  id: z.string(),
+  title: z.string().min(1).max(100),
+  content: z.string(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export type Event = z.infer<typeof EventSchema>;
+
+// Validate in API client
+export function getEvent(id: string) {
+  return apiClient.get<Event>(`/api/events/${id}`, {
+    schema: EventSchema,
+  });
+}
+```
+
+## Supabase Patterns (Future)
+
+### Direct Query Building
+
+```typescript
+// ✅ Good - direct query building
+export function getEvents() {
+  return supabase
+    .from('events')
+    .select('*')
+    .order('created_at', { ascending: false });
+}
+
+export function getEvent(id: string) {
+  return supabase
+    .from('events')
+    .select('*')
+    .eq('id', id)
+    .single();
+}
+
+// ❌ Bad - wrapper functions
+export const eventApi = {
+  get: (id: string) => supabase.from('events').select('*').eq('id', id),
+};
+```
+
+### Real-time Subscriptions
+
+```typescript
+export function useEventSubscription(id: string) {
+  useEffect(() => {
+    const channel = supabase
+      .channel(`event:${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'events',
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          // Handle real-time updates
+          queryClient.invalidateQueries({ queryKey: ['events', id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id]);
+}
+```
+
+## Caching Strategy
+
+### Query Keys Structure
+
+```typescript
+// Use hierarchical query keys
+['events']                    // All events
+['events', id]                // Single event
+['events', id, 'comments']    // Event comments
+['events', { filters }]       // Filtered events
+```
+
+### Cache Invalidation
+
+```typescript
+// After creating event
+queryClient.invalidateQueries({ queryKey: ['events'] });
+
+// After updating event
+queryClient.invalidateQueries({ queryKey: ['events', id] });
+queryClient.invalidateQueries({ queryKey: ['events'] }); // Also invalidate list
+
+// After deleting event
+queryClient.removeQueries({ queryKey: ['events', id] });
+queryClient.invalidateQueries({ queryKey: ['events'] });
+```
+
+## Request Batching
+
+```typescript
+// Use React Query's automatic batching
+export function useMultipleEvents(ids: string[]) {
+  return useQueries({
+    queries: ids.map((id) => ({
+      queryKey: ['events', id],
+      queryFn: () => getEvent(id),
+    })),
+  });
+}
+```
+
+## Retry Logic
+
+```typescript
+export function useEvents() {
+  return useQuery({
+    queryKey: ['events'],
+    queryFn: getEvents,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+  });
+}
+```
+
+## API Design Checklist
+
+- [ ] Use separate functions, not objects with methods
+- [ ] Validate all responses with Zod schemas
+- [ ] Implement proper error handling
+- [ ] Use React Query for data fetching
+- [ ] Implement optimistic updates for mutations
+- [ ] Use proper query key structure
+- [ ] Handle loading and error states
+- [ ] Implement retry logic where appropriate
+- [ ] Use interceptors for common concerns (auth token refresh, error handling)
+- [ ] Invalidate cache appropriately

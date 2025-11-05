@@ -1,0 +1,157 @@
+---
+alwaysApply: true
+---
+
+# Accessibility Guidelines
+
+## ARIA Guidelines
+
+- Use proper ARIA labels
+- Implement keyboard navigation
+- Ensure proper focus management
+- Use semantic HTML elements
+- Provide alternative text for images
+
+## Color and Contrast
+
+- Ensure WCAG 2.1 AA compliance
+- Support dark/light themes
+- Test with screen readers
+- Use sufficient color contrast ratios
+- Don't rely solely on color to convey information
+
+## Keyboard Navigation
+
+- Ensure all interactive elements are keyboard accessible
+- Implement proper tab order
+- Use skip links for navigation
+- Provide keyboard shortcuts for common actions
+- Handle focus in modals and overlays
+
+## Screen Reader Support
+
+- Use proper heading hierarchy (h1-h6)
+- Provide alternative text for images
+- Use descriptive link text
+- Implement proper form labels
+- Use ARIA landmarks
+
+## Focus Management
+
+- Maintain logical focus order
+- Provide visible focus indicators
+- Handle focus in modals and overlays
+- Return focus when closing modals
+- Use focus traps when necessary
+
+## Semantic HTML
+
+```typescript
+// Good - semantic HTML
+<main>
+  <h1>Events</h1>
+  <section aria-labelledby="events-heading">
+    <h2 id="events-heading">My Events</h2>
+    <article>
+      <h3>Event Title</h3>
+      <p>Event content...</p>
+    </article>
+  </section>
+</main>
+
+// Bad - non-semantic
+<div>
+  <div>Events</div>
+  <div>
+    <div>My Events</div>
+    <div>
+      <div>Event Title</div>
+      <div>Event content...</div>
+    </div>
+  </div>
+</div>
+```
+
+## Interactive Elements
+
+```typescript
+// Accessible button
+<button
+  onClick={handleClick}
+  onKeyDown={handleKeyDown}
+  aria-label="Delete event"
+  aria-describedby="delete-description"
+>
+  <TrashIcon aria-hidden="true" />
+  <span>Delete</span>
+</button>
+<div id="delete-description" className="sr-only">
+  Permanently delete this event
+</div>
+
+// Screen reader only class
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+```
+
+## Skip Links
+
+```typescript
+// Skip to main content link
+<a href="#main-content" className="skip-link">
+  Skip to main content
+</a>
+
+<main id="main-content" tabIndex={-1}>
+  {/* Main content */}
+</main>
+
+// CSS for skip link
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 6px;
+  background: #000;
+  color: #fff;
+  padding: 8px;
+  text-decoration: none;
+  z-index: 1000;
+}
+
+.skip-link:focus {
+  top: 6px;
+}
+```
+
+## Testing Accessibility
+
+- Use axe-core for automated testing
+- Test with screen readers (NVDA, JAWS, VoiceOver)
+- Test keyboard navigation
+- Test with high contrast mode
+- Test with zoom (200% and 400%)
+
+## Accessibility Checklist
+
+- [ ] Semantic HTML structure
+- [ ] Proper heading hierarchy
+- [ ] Alternative text for images
+- [ ] Keyboard navigation
+- [ ] Focus management
+- [ ] Color contrast compliance
+- [ ] Screen reader compatibility
+- [ ] Form accessibility
+- [ ] Modal accessibility
+- [ ] Skip links
+- [ ] ARIA labels and descriptions
+- [ ] Error message accessibility
+- [ ] Loading state accessibility

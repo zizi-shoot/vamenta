@@ -1,0 +1,391 @@
+---
+alwaysApply: true
+---
+
+# Component Composition Patterns
+
+## Component Decomposition
+
+### When to Split Components
+
+- Component is > 200 lines
+- Component has multiple responsibilities
+- Logic can be reused elsewhere
+- Component is hard to test
+- Component has complex nested structure
+
+### Single Responsibility Principle
+
+```typescript
+// ✅ Good - focused components
+export function EventCard({ event }: EventCardProps) {
+  return (
+    <article className={styles.card}>
+      <EventCardHeader event={event} />
+      <EventCardContent event={event} />
+      <EventCardFooter event={event} />
+    </article>
+  );
+}
+
+export function EventCardHeader({ event }: { event: Event }) {
+  return (
+    <header className={styles.header}>
+      <h3>{event.title}</h3>
+      <EventCardMeta event={event} />
+    </header>
+  );
+}
+
+// ❌ Bad - one large component
+export function EventCard({ event }: EventCardProps) {
+  return (
+    <article className={styles.card}>
+      <header className={styles.header}>
+        <h3>{event.title}</h3>
+        <div className={styles.meta}>
+          <span>{formatDate(event.date)}</span>
+          <span>{event.category}</span>
+        </div>
+      </header>
+      <div className={styles.content}>
+        <p>{event.content}</p>
+      </div>
+      <footer className={styles.footer}>
+        <button>Edit</button>
+        <button>Delete</button>
+      </footer>
+    </article>
+  );
+}
+```
+
+## Children Pattern
+
+### Basic Children
+
+```typescript
+interface CardProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function Card({ children, className }: CardProps) {
+  return <div className={clsx(styles.card, className)}>{children}</div>;
+}
+
+// Usage
+<Card>
+  <h2>Title</h2>
+  <p>Content</p>
+</Card>
+```
+
+### Named Slots Pattern
+
+```typescript
+interface CardProps {
+  header?: React.ReactNode;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+}
+
+export function Card({ header, children, footer }: CardProps) {
+  return (
+    <div className={styles.card}>
+      {header && <header className={styles.header}>{header}</header>}
+      <div className={styles.content}>{children}</div>
+      {footer && <footer className={styles.footer}>{footer}</footer>}
+    </div>
+  );
+}
+
+// Usage
+<Card
+  header={<h2>Title</h2>}
+  footer={<button>Action</button>}
+>
+  Content
+</Card>
+```
+
+## Render Props Pattern
+
+```typescript
+interface DataFetcherProps<T> {
+  queryKey: QueryKey;
+  queryFn: QueryFunction<T>;
+  children: (data: {
+    data: T | undefined;
+    isLoading: boolean;
+    error: Error | null;
+  }) => React.ReactNode;
+}
+
+export function DataFetcher<T>({ queryKey, queryFn, children }: DataFetcherProps<T>) {
+  const { data, isLoading, error } = useQuery({
+    queryKey,
+    queryFn,
+  });
+
+  return <>{children({ data, isLoading, error })}</>;
+}
+
+// Usage
+<DataFetcher
+  queryKey={['events']}
+  queryFn={getEvents}
+>
+  {({ data, isLoading, error }) => {
+    if (isLoading) return <Loading />;
+    if (error) return <Error message={error.message} />;
+    return <EventList events={data} />;
+  }}
+</DataFetcher>
+```
+
+## Compound Components Pattern
+
+```typescript
+interface ModalContextValue {
+  isOpen: boolean;
+  open: () => void;
+  close: () => void;
+}
+
+const ModalContext = createContext<ModalContextValue | null>(null);
+
+function useModalContext() {
+  const context = useContext(ModalContext);
+  if (!context) {
+    throw new Error('Modal components must be used within Modal');
+  }
+  return context;
+}
+
+interface ModalProps {
+  children: React.ReactNode;
+}
+
+export function Modal({ children }: ModalProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const value: ModalContextValue = {
+    isOpen,
+    open: () => setIsOpen(true),
+    close: () => setIsOpen(false),
+  };
+
+  return (
+    <ModalContext.Provider value={value}>
+      {children}
+    </ModalContext.Provider>
+  );
+}
+
+export function ModalTrigger({ children }: { children: React.ReactNode }) {
+  const { open } = useModalContext();
+  return <div onClick={open}>{children}</div>;
+}
+
+export function ModalContent({ children }: { children: React.ReactNode }) {
+  const { isOpen, close } = useModalContext();
+  if (!isOpen) return null;
+
+  return (
+    <div className={styles.overlay} onClick={close}>
+      <div className={styles.content} onClick={(e) => e.stopPropagation()}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+export function ModalClose({ children }: { children: React.ReactNode }) {
+  const { close } = useModalContext();
+  return <button onClick={close}>{children}</button>;
+}
+
+// Usage
+<Modal>
+  <ModalTrigger>
+    <button>Open Modal</button>
+  </ModalTrigger>
+  <ModalContent>
+    <h2>Modal Title</h2>
+    <p>Modal content</p>
+    <ModalClose>
+      <button>Close</button>
+    </ModalClose>
+  </ModalContent>
+</Modal>
+```
+
+## Higher-Order Components (Avoid When Possible)
+
+```typescript
+// Only use HOC if absolutely necessary
+// Prefer hooks or composition instead
+
+interface WithAuthProps {
+  user: User;
+}
+
+export function withAuth<P extends object>(
+  Component: React.ComponentType<P & WithAuthProps>
+) {
+  return function AuthenticatedComponent(props: P) {
+    const { user } = useAuth();
+    
+    if (!user) {
+      return <Navigate to="/login" />;
+    }
+
+    return <Component {...props} user={user} />;
+  };
+}
+
+// Usage
+const ProtectedEventList = withAuth(EventList);
+```
+
+## Custom Hooks for Logic Separation
+
+```typescript
+// ✅ Good - extract logic to hook
+export function useEventCard(event: Event) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const updateMutation = useUpdateEvent();
+  const deleteMutation = useDeleteEvent();
+
+  const handleToggle = () => setIsExpanded(!isExpanded);
+  const handleEdit = () => {/* ... */};
+  const handleDelete = () => {/* ... */};
+
+  return {
+    isExpanded,
+    handleToggle,
+    handleEdit,
+    handleDelete,
+    isLoading: updateMutation.isPending || deleteMutation.isPending,
+  };
+}
+
+export function EventCard({ event }: EventCardProps) {
+  const { isExpanded, handleToggle, handleEdit, handleDelete, isLoading } =
+    useEventCard(event);
+
+  return (
+    <article>
+      <button onClick={handleToggle}>Toggle</button>
+      {isExpanded && <EventDetails event={event} />}
+      <button onClick={handleEdit} disabled={isLoading}>Edit</button>
+      <button onClick={handleDelete} disabled={isLoading}>Delete</button>
+    </article>
+  );
+}
+```
+
+## Container/Presentational Pattern
+
+```typescript
+// Container component - handles logic
+export function EventListContainer() {
+  const { data: events, isLoading, error } = useEvents();
+  const filters = useEventFilters();
+  const filteredEvents = useMemo(() => filterEvents(events, filters), [events, filters]);
+
+  if (isLoading) return <LoadingSpinner />;
+  if (error) return <ErrorMessage error={error} />;
+
+  return <EventList events={filteredEvents} />;
+}
+
+// Presentational component - handles UI
+interface EventListProps {
+  events: Event[];
+}
+
+export function EventList({ events }: EventListProps) {
+  return (
+    <ul className={styles.list}>
+      {events.map((event) => (
+        <li key={event.id}>
+          <EventCard event={event} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## Composition Over Configuration
+
+```typescript
+// ✅ Good - composable
+export function Button({ children, variant, size, ...props }: ButtonProps) {
+  return (
+    <button
+      className={clsx(styles.button, styles[variant], styles[size])}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+// Usage - compose as needed
+<Button variant="primary" size="large">
+  Click me
+</Button>
+
+// ❌ Bad - too many props
+export function Button({
+  children,
+  isPrimary,
+  isSecondary,
+  isLarge,
+  isSmall,
+  isDisabled,
+  // ... 20 more props
+}: ButtonProps) {
+  // Complex logic to determine classes
+}
+```
+
+## Slot Pattern with Multiple Children
+
+```typescript
+interface LayoutProps {
+  sidebar?: React.ReactNode;
+  header?: React.ReactNode;
+  footer?: React.ReactNode;
+  children: React.ReactNode;
+}
+
+export function Layout({ sidebar, header, footer, children }: LayoutProps) {
+  return (
+    <div className={styles.layout}>
+      {header && <header className={styles.header}>{header}</header>}
+      <div className={styles.body}>
+        {sidebar && <aside className={styles.sidebar}>{sidebar}</aside>}
+        <main className={styles.main}>{children}</main>
+      </div>
+      {footer && <footer className={styles.footer}>{footer}</footer>}
+    </div>
+  );
+}
+```
+
+## Component Composition Checklist
+
+- [ ] Components follow single responsibility principle
+- [ ] Large components are split into smaller ones
+- [ ] Children pattern is used for flexible composition
+- [ ] Compound components are used for complex UI patterns
+- [ ] Logic is extracted to custom hooks
+- [ ] Container/presentational pattern is used when appropriate
+- [ ] Components are composable, not overly configurable
+- [ ] Avoid prop drilling with proper composition
+- [ ] HOCs are avoided in favor of hooks or composition
+- [ ] Components are testable in isolation

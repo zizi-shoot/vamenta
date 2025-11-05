@@ -1,0 +1,211 @@
+---
+alwaysApply: true
+---
+
+# Development Workflow
+
+## Git Commits
+
+- Use Conventional Commits format
+- Use Commit Lint for validation
+- Use Left Hook for pre-commit hooks
+
+### Conventional Commits Format
+
+```
+type(scope): description
+
+[optional body]
+
+[optional footer]
+```
+
+### Commit Types
+
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style changes (formatting, etc.)
+- `refactor`: Code refactoring
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks
+- `perf`: Performance improvements
+- `ci`: CI/CD changes
+- `build`: Build system changes
+
+### Examples
+
+```
+feat(events): add rich text editor for events
+fix(auth): resolve login redirect issue
+docs(readme): update installation instructions
+style(ui): improve button component styling
+refactor(api): simplify event creation endpoint
+test(components): add tests for EventCard component
+```
+
+## Branch Strategy
+
+- Use feature branches for new features
+- Use descriptive branch names
+- Implement proper code review process
+- Use pull requests for all changes
+
+### Branch Naming
+
+```
+feature/event-management
+bugfix/auth-redirect
+hotfix/critical-error
+refactor/api-structure
+docs/update-readme
+```
+
+## Code Quality
+
+- ESLint for code linting
+- Prettier for code formatting
+- Stylelint for CSS/SCSS linting
+- TypeScript strict mode
+- Automated testing
+
+## Environment Setup
+
+- Use proper environment variables
+- Implement development/staging/production configs
+- Use proper secret management
+
+## Code Review Process
+
+- All changes require pull request
+- Minimum 1 reviewer approval
+- Automated checks must pass
+- Code coverage requirements
+- Documentation updates
+
+### Review Checklist
+
+- [ ] Code follows project conventions
+- [ ] Tests are included and passing
+- [ ] Documentation is updated
+- [ ] No security vulnerabilities
+- [ ] Performance impact considered
+- [ ] Accessibility requirements met
+
+## Testing Strategy
+
+- Unit tests for utilities and hooks
+- Component tests for UI components
+- Integration tests for features
+- E2E tests for critical paths
+- Performance testing
+
+### Test Requirements
+
+- Minimum 80% code coverage
+- All new features must have tests
+- Bug fixes must include regression tests
+- Performance tests for critical paths
+
+## Deployment
+
+- Use Vercel for hosting
+- Implement proper CI/CD pipeline
+- Use environment-specific builds
+- Implement rollback strategy
+
+### Deployment Pipeline
+
+1. Code commit to main branch
+2. Automated tests run
+3. Build process starts
+4. Deployment to staging
+5. Manual testing on staging
+6. Deployment to production
+7. Post-deployment verification
+
+## Monitoring and Logging
+
+- Implement error tracking
+- Monitor performance metrics
+- Track user analytics
+- Log important events
+
+### Error Tracking
+
+```typescript
+// Error boundary
+class ErrorBoundary extends React.Component {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // Log error to monitoring service
+    logError(error, errorInfo);
+  }
+}
+
+// API error handling
+const handleApiError = (error: ApiError) => {
+  logError('API Error', {
+    endpoint: error.config?.url,
+    status: error.response?.status,
+    message: error.message,
+  });
+};
+```
+
+## Documentation
+
+- **Always use English** for all documentation, README files, API docs, and technical guides
+- Keep README up to date
+- Document API endpoints with clear examples
+- Maintain component documentation with usage examples
+- Update deployment guides when processes change
+- Write clear, concise, and beginner-friendly documentation
+- Include code examples and practical use cases
+- Document breaking changes and migration guides
+- Place all documentation in /docs directory of root
+
+### Documentation Structure
+
+```
+docs/
+├── getting-started.md
+├── architecture.md
+├── api-reference.md
+├── deployment.md
+├── contributing.md
+└── troubleshooting.md
+```
+
+## Performance Monitoring
+
+- Track Core Web Vitals
+- Monitor bundle size
+- Track API response times
+- Monitor error rates
+
+### Performance Budget
+
+```typescript
+const PERFORMANCE_BUDGET = {
+  bundleSize: 250 * 1024, // 250KB
+  lcp: 2500, // 2.5s
+  fid: 100, // 100ms
+  cls: 0.1,
+};
+```
+
+## Security Practices
+
+- Regular dependency updates
+- Security audits
+- Vulnerability scanning
+- Access control reviews
+
+### Security Checklist
+
+- [ ] Dependencies are up to date
+- [ ] No known vulnerabilities
+- [ ] Environment variables are secure
+- [ ] API endpoints are protected
+- [ ] User data is encrypted
+- [ ] Access controls are in place

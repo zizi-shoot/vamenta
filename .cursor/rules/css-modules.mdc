@@ -1,0 +1,401 @@
+---
+alwaysApply: true
+---
+
+# CSS Modules Patterns
+
+## File Naming
+
+### Naming Convention
+
+- Use kebab-case for CSS Module files
+- Match component name: `event-card.module.css` for `event-card.tsx`
+- Place in same directory as component
+
+```
+components/
+├── event-card.tsx
+└── event-card.module.css
+```
+
+## CSS Module Usage
+
+### Basic Import
+
+```typescript
+import styles from './event-card.module.css';
+
+export function EventCard() {
+  return <div className={styles.card}>Content</div>;
+}
+```
+
+### Multiple Classes
+
+```typescript
+import styles from './event-card.module.css';
+import clsx from 'clsx';
+
+export function EventCard({ isExpanded }: { isExpanded: boolean }) {
+  return (
+    <div className={clsx(styles.card, isExpanded && styles.expanded)}>
+      Content
+    </div>
+  );
+}
+```
+
+### Conditional Classes with clsx
+
+```typescript
+// ✅ Good - use clsx for conditional classes
+import clsx from 'clsx';
+
+export function Button({ variant, size, className }: ButtonProps) {
+  return (
+    <button
+      className={clsx(
+        styles.button,
+        styles[variant],
+        styles[size],
+        className
+      )}
+    >
+      Content
+    </button>
+  );
+}
+
+// ❌ Bad - string concatenation
+export function Button({ variant }: ButtonProps) {
+  return (
+    <button className={`${styles.button} ${styles[variant]}`}>
+      Content
+    </button>
+  );
+}
+```
+
+## CSS Class Naming
+
+### Naming Convention
+
+- Use kebab-case for class names
+- Use descriptive names
+- Use BEM-like structure when appropriate
+
+```css
+/* ✅ Good */
+.card {
+  /* ... */
+}
+
+.card-header {
+  /* ... */
+}
+
+.card-content {
+  /* ... */
+}
+
+.card-footer {
+  /* ... */
+}
+
+.card-header-title {
+  /* ... */
+}
+
+/* ❌ Bad */
+.cardHeader {
+  /* ... */
+}
+
+.card_header {
+  /* ... */
+}
+```
+
+## CSS Organization in FSD
+
+### Component Styles
+
+```
+entities/event/ui/
+├── event-card.tsx
+└── event-card.module.css
+```
+
+### Shared Styles
+
+```
+shared/ui/
+├── button/
+│   ├── button.tsx
+│   └── button.module.css
+```
+
+### Page Styles
+
+```
+pages/events/
+├── events-page.tsx
+└── events-page.module.css
+```
+
+## CSS Variables (Custom Properties)
+
+### Theme Variables
+
+```css
+/* shared/ui/theme.css or global.css */
+:root {
+  --color-primary: #0070f3;
+  --color-secondary: #7928ca;
+  --color-background: #ffffff;
+  --color-text: #000000;
+  --spacing-small: 8px;
+  --spacing-medium: 16px;
+  --spacing-large: 24px;
+  --border-radius: 8px;
+  --font-size-base: 16px;
+}
+
+[data-theme='dark'] {
+  --color-background: #000000;
+  --color-text: #ffffff;
+}
+```
+
+### Using CSS Variables
+
+```css
+.card {
+  background-color: var(--color-background);
+  color: var(--color-text);
+  padding: var(--spacing-medium);
+  border-radius: var(--border-radius);
+}
+```
+
+## Responsive Design
+
+### Mobile-First Approach
+
+```css
+.card {
+  padding: var(--spacing-small);
+  font-size: 14px;
+}
+
+@media (min-width: 768px) {
+  .card {
+    padding: var(--spacing-medium);
+    font-size: 16px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .card {
+    padding: var(--spacing-large);
+    font-size: 18px;
+  }
+}
+```
+
+### Breakpoint Variables
+
+```css
+:root {
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+}
+
+@media (min-width: var(--breakpoint-md)) {
+  .card {
+    /* ... */
+  }
+}
+```
+
+## Composition Patterns
+
+### Composing Styles
+
+```typescript
+// Base component
+import baseStyles from './base.module.css';
+import componentStyles from './component.module.css';
+
+export function Component() {
+  return (
+    <div className={clsx(baseStyles.container, componentStyles.specific)}>
+      Content
+    </div>
+  );
+}
+```
+
+### Style Inheritance
+
+```css
+/* base.module.css */
+.base {
+  padding: var(--spacing-medium);
+  border-radius: var(--border-radius);
+}
+
+/* component.module.css */
+.component {
+  composes: base from './base.module.css';
+  background-color: var(--color-primary);
+}
+```
+
+## Animation Patterns
+
+### CSS Transitions
+
+```css
+.card {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  opacity: 0.9;
+}
+```
+
+### CSS Animations
+
+```css
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+```
+
+## Accessibility in CSS
+
+### Focus States
+
+```css
+.button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.button:focus:not(:focus-visible) {
+  outline: none;
+}
+```
+
+### Reduced Motion
+
+```css
+.card {
+  transition: transform 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+  }
+}
+```
+
+## CSS Module Best Practices
+
+### Keep Styles Scoped
+
+```css
+/* ✅ Good - scoped to component */
+.card {
+  /* ... */
+}
+
+.card-title {
+  /* ... */
+}
+
+/* ❌ Bad - global styles (use :global() if needed) */
+:global(.global-class) {
+  /* Only when absolutely necessary */
+}
+```
+
+### Avoid Deep Nesting
+
+```css
+/* ✅ Good - flat structure */
+.card {
+  /* ... */
+}
+
+.card-header {
+  /* ... */
+}
+
+.card-title {
+  /* ... */
+}
+
+/* ❌ Bad - deep nesting */
+.card {
+  .header {
+    .title {
+      /* ... */
+    }
+  }
+}
+```
+
+### Use Semantic Class Names
+
+```css
+/* ✅ Good - semantic */
+.card {
+  /* ... */
+}
+
+.card-header {
+  /* ... */
+}
+
+/* ❌ Bad - presentational */
+.red-box {
+  /* ... */
+}
+
+.big-text {
+  /* ... */
+}
+```
+
+## CSS Modules Checklist
+
+- [ ] Use kebab-case for CSS Module files
+- [ ] Match component name in file name
+- [ ] Use kebab-case for class names
+- [ ] Use clsx for conditional classes
+- [ ] Keep styles scoped to components
+- [ ] Use CSS variables for theming
+- [ ] Implement mobile-first responsive design
+- [ ] Add focus states for accessibility
+- [ ] Respect prefers-reduced-motion
+- [ ] Avoid deep nesting
+- [ ] Use semantic class names
+- [ ] Place styles next to components

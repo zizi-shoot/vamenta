@@ -1,0 +1,130 @@
+---
+alwaysApply: true
+---
+
+# Performance Guidelines
+
+## Code Splitting
+
+- Use dynamic imports for large components
+- Implement proper loading states
+- Use React.lazy for route-based splitting
+- Split vendor bundles from application code
+
+## Optimization
+
+- Use React.memo for expensive components
+- Implement proper key props for lists
+- Use useMemo and useCallback appropriately
+- Avoid unnecessary re-renders
+- Optimize bundle size
+
+## Bundle Optimization
+
+- Monitor bundle size with webpack-bundle-analyzer
+- Use Next.js built-in optimizations
+- Implement proper tree shaking
+- Remove unused dependencies
+- Use dynamic imports for heavy libraries
+
+## Core Web Vitals
+
+- Optimize Largest Contentful Paint (LCP) - target < 2.5s
+- Minimize First Input Delay (FID) - target < 100ms
+- Reduce Cumulative Layout Shift (CLS) - target < 0.1
+- Optimize First Contentful Paint (FCP) - target < 1.8s
+
+## Image Optimization
+
+- Use Next.js Image component
+- Implement proper lazy loading
+- Optimize image formats (WebP, AVIF)
+- Use appropriate image sizes
+- Implement responsive images
+
+## Font Optimization
+
+- Use Next.js font optimization
+- Preload critical fonts
+- Use font-display: swap
+- Minimize font file sizes
+
+## Caching Strategy
+
+- Implement proper HTTP caching headers
+- Use React Query for client-side caching
+- Cache static assets
+- Implement service worker for offline support
+
+## Memory Management
+
+- Clean up event listeners
+- Avoid memory leaks in useEffect
+- Properly dispose of subscriptions
+- Use WeakMap/WeakSet when appropriate
+
+## Network Optimization
+
+- Minimize HTTP requests
+- Use HTTP/2 or HTTP/3
+- Implement request batching
+- Use CDN for static assets
+
+## Database Optimization (Future)
+
+- Implement proper indexing
+- Use connection pooling
+- Optimize queries
+- Implement caching layers
+
+## Monitoring
+
+- Track Core Web Vitals
+- Monitor bundle size
+- Track API response times
+- Monitor error rates
+- Use performance budgets
+
+## Lazy Loading Patterns
+
+```typescript
+// Route-based code splitting
+const TasksPage = lazy(() => import('@/pages/tasks'));
+
+// Component-based code splitting
+const HeavyComponent = lazy(() => import('./heavy-component'));
+
+// Library-based code splitting
+const loadChartLibrary = () => import('chart.js');
+```
+
+## Performance Monitoring
+
+```typescript
+// Track Core Web Vitals
+export function reportWebVitals(metric: any) {
+  if (metric.label === 'web-vital') {
+    console.log(metric);
+    // Send to analytics
+  }
+}
+
+// Performance budget
+const PERFORMANCE_BUDGET = {
+  bundleSize: 250 * 1024, // 250KB
+  lcp: 2500, // 2.5s
+  fid: 100, // 100ms
+  cls: 0.1,
+};
+```
+
+## Optimization Checklist
+
+- [ ] Implement code splitting
+- [ ] Optimize images and fonts
+- [ ] Monitor Core Web Vitals
+- [ ] Implement proper caching
+- [ ] Minimize bundle size
+- [ ] Optimize API calls
+- [ ] Implement lazy loading
+- [ ] Monitor performance metrics

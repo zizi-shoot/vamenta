@@ -1,0 +1,252 @@
+---
+alwaysApply: true
+---
+
+# Dependencies Management
+
+## When to Add a New Dependency
+
+### Criteria for Adding Dependencies
+
+- Solves a real problem (not just convenience)
+- Actively maintained (recent updates, active community)
+- Well-documented
+- Appropriate bundle size impact
+- No security vulnerabilities
+- Good TypeScript support
+- Used by reputable projects
+
+### Questions to Ask Before Adding
+
+1. Can this be solved with native browser APIs?
+2. Can this be solved with a small utility function?
+3. Is this dependency essential or just nice-to-have?
+4. What's the bundle size impact?
+5. Are there security concerns?
+6. Is there a lighter alternative?
+
+## Dependency Categories
+
+### Core Dependencies (Always Required)
+
+- React, Next.js, TypeScript
+- React Query, Zustand
+- React Hook Form, Zod
+- Axios
+
+### Development Dependencies
+
+- ESLint, Prettier, Stylelint
+- Testing libraries (Vitest, Testing Library)
+- TypeScript, build tools
+
+### Peer Dependencies
+
+- React (for component libraries)
+- Next.js (for Next.js-specific packages)
+
+## Version Management
+
+### Version Pinning Strategy
+
+**All dependency versions must be exact (no `^` or `~` prefixes).**
+
+Use exact versions for all dependencies to ensure reproducible builds and prevent unexpected breaking changes:
+
+```json
+{
+  "dependencies": {
+    "react": "19.0.0",      // Exact version required
+    "axios": "1.6.0",       // Exact version required
+    "zod": "3.22.0"         // Exact version required
+  }
+}
+```
+
+### Why Exact Versions?
+
+- **Reproducible builds**: All team members and CI/CD use identical dependency versions
+- **Predictable updates**: No unexpected breaking changes from automatic updates
+- **Better debugging**: Easier to identify issues when versions are consistent
+- **Security**: Explicit control over which versions are used
+
+### Version Range Reference
+
+While we use exact versions, here's what the symbols mean (for reference only):
+
+- `1.2.3` - Exact version (required for all dependencies)
+- `^1.2.3` - ❌ **Never use** - Allows patch and minor updates (1.2.3 to <2.0.0)
+- `~1.2.3` - ❌ **Never use** - Allows only patch updates (1.2.3 to <1.3.0)
+- `*` or `latest` - ❌ **Never use** - Unpredictable and dangerous
+
+## Dependency Updates
+
+### Regular Updates
+
+- Check for updates weekly
+- Review changelogs before updating
+- **Always update to exact versions** (e.g., `"1.2.3"` not `"^1.2.3"`)
+- Test thoroughly after updates
+- Update one dependency at a time when possible
+
+### Security Updates
+
+- Use `pnpm audit` to check for vulnerabilities
+- Fix critical vulnerabilities immediately
+- Review security advisories regularly
+- Use `pnpm audit --fix` for automatic fixes when safe
+
+### Major Version Updates
+
+- Read migration guides carefully
+- Check breaking changes
+- Update in separate PR
+- Test thoroughly before merging
+- Consider using codemods if available
+
+## Bundle Size Considerations
+
+### Bundle Size Impact
+
+```typescript
+// Check bundle size before adding
+import { someFunction } from 'large-library';
+
+// Consider tree-shaking
+import { someFunction } from 'large-library/someFunction';
+
+// Consider dynamic imports for large libraries
+const HeavyComponent = lazy(() => import('./heavy-component'));
+```
+
+### Analyzing Bundle Size
+
+```bash
+# Analyze bundle size
+pnpm build
+pnpm analyze
+
+# Check individual package sizes
+pnpm why <package-name>
+```
+
+### Bundle Size Limits
+
+- Target: < 250KB initial bundle
+- Monitor bundle size in CI
+- Use bundle analyzer regularly
+- Remove unused dependencies
+
+## Dependency Alternatives
+
+### Lightweight Alternatives
+
+```typescript
+// ❌ Heavy library
+import moment from 'moment';
+
+// ✅ Lightweight alternative
+import dayjs from 'dayjs';
+
+// ❌ Heavy library
+import _ from 'lodash';
+
+// ✅ Native or small utility
+// Use native array methods or small utility functions
+```
+
+## Removing Dependencies
+
+### When to Remove
+
+- No longer used in codebase
+- Replaced with native alternative
+- Replaced with lighter alternative
+- Security vulnerabilities with no fix
+- Deprecated or unmaintained
+
+### Safe Removal Process
+
+1. Search codebase for usage
+2. Remove from package.json
+3. Run `pnpm install`
+4. Run tests
+5. Check for build errors
+6. Commit removal
+
+## Peer Dependencies
+
+### Managing Peer Dependencies
+
+```json
+{
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  }
+}
+```
+
+### Peer Dependency Warnings
+
+- Resolve peer dependency warnings
+- Ensure compatible versions
+- Document peer dependency requirements
+
+## Lock File Management
+
+### Lock File Best Practices
+
+- Commit `pnpm-lock.yaml` to version control
+- Don't manually edit lock files
+- Regenerate lock file when updating dependencies
+- Use `pnpm install --frozen-lockfile` in CI
+
+## Dependency Audit
+
+### Regular Audits
+
+```bash
+# Check for vulnerabilities
+pnpm audit
+
+# Fix vulnerabilities
+pnpm audit --fix
+
+# Check for outdated packages
+pnpm outdated
+
+# Update dependencies
+pnpm update
+```
+
+### Audit Checklist
+
+- [ ] Run `pnpm audit` weekly
+- [ ] Fix critical vulnerabilities immediately
+- [ ] Review security advisories
+- [ ] Update outdated dependencies regularly
+- [ ] Remove unused dependencies
+- [ ] Monitor bundle size impact
+
+## Dependency Documentation
+
+### Documenting Dependencies
+
+- Document why each dependency is needed
+- Document version constraints and reasons
+- Document alternatives considered
+- Update documentation when dependencies change
+
+## Dependency Management Checklist
+
+- [ ] Evaluate necessity before adding dependencies
+- [ ] Check bundle size impact
+- [ ] Verify security status
+- [ ] Use exact versions only (no `^` or `~` prefixes)
+- [ ] Update dependencies regularly (with explicit version changes)
+- [ ] Remove unused dependencies
+- [ ] Monitor for vulnerabilities
+- [ ] Document dependency decisions
+- [ ] Test thoroughly after updates
+- [ ] Keep lock file in version control

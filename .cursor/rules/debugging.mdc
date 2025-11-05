@@ -1,0 +1,322 @@
+---
+alwaysApply: true
+---
+
+# Debugging Guidelines
+
+## React DevTools
+
+### Component Inspection
+
+- Use React DevTools to inspect component tree
+- Check component props and state
+- Use Profiler to identify performance issues
+- Inspect component render times
+
+### React Query DevTools
+
+```typescript
+// Enable React Query DevTools in development
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+
+export function App() {
+  return (
+    <>
+      {/* Your app */}
+      {process.env.NODE_ENV === 'development' && <ReactQueryDevtools />}
+    </>
+  );
+}
+```
+
+## Console Debugging
+
+### Structured Logging
+
+```typescript
+// ✅ Good - structured logging
+console.log('[EventCard]', {
+  eventId: event.id,
+  isExpanded,
+  isLoading,
+});
+
+// ❌ Bad - unstructured logging
+console.log('EventCard', event, isExpanded, isLoading);
+```
+
+### Log Levels
+
+```typescript
+// Use appropriate log levels
+console.debug('Debug information', data);
+console.info('Info message', data);
+console.warn('Warning message', data);
+console.error('Error message', error);
+```
+
+### Debug Helpers
+
+```typescript
+// Create debug helpers
+export function debugEvent(event: Event) {
+  console.group('Event Debug');
+  console.log('ID:', event.id);
+  console.log('Title:', event.title);
+  console.log('Date:', event.date);
+  console.log('Full object:', event);
+  console.groupEnd();
+}
+```
+
+## Network Debugging
+
+### API Request Debugging
+
+```typescript
+// Add request logging interceptor
+apiClient.interceptors.request.use((config) => {
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[API Request]', {
+      method: config.method?.toUpperCase(),
+      url: config.url,
+      data: config.data,
+    });
+  }
+  return config;
+});
+
+// Add response logging interceptor
+apiClient.interceptors.response.use(
+  (response) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[API Response]', {
+        url: response.config.url,
+        status: response.status,
+        data: response.data,
+      });
+    }
+    return response;
+  },
+  (error) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[API Error]', {
+        url: error.config?.url,
+        status: error.response?.status,
+        message: error.message,
+        data: error.response?.data,
+      });
+    }
+    return Promise.reject(error);
+  }
+);
+```
+
+### Network Tab
+
+- Use browser DevTools Network tab
+- Check request/response headers
+- Verify request payloads
+- Check response status codes
+- Monitor request timing
+
+## State Debugging
+
+### Zustand State Inspection
+
+```typescript
+// Add state logging in development
+export const useAuthStore = create<AuthState>((set, get) => ({
+  user: null,
+  login: (user) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[AuthStore] Login:', user);
+    }
+    set({ user });
+  },
+}));
+
+// Subscribe to state changes
+useAuthStore.subscribe((state) => {
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[AuthStore] State changed:', state);
+  }
+});
+```
+
+### React Query State Inspection
+
+```typescript
+// Use React Query DevTools
+// Check query status, data, error
+// Inspect cache contents
+// Monitor refetch behavior
+```
+
+## Breakpoint Debugging
+
+### VS Code Debugging
+
+```json
+// .vscode/launch.json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Next.js: debug server-side",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm dev"
+    },
+    {
+      "name": "Next.js: debug client-side",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}"
+    }
+  ]
+}
+```
+
+### Browser Breakpoints
+
+- Use browser DevTools Sources tab
+- Set breakpoints in code
+- Use conditional breakpoints
+- Inspect variables at breakpoints
+- Step through code execution
+
+## Performance Debugging
+
+### React Profiler
+
+```typescript
+import { Profiler } from 'react';
+
+function onRenderCallback(id, phase, actualDuration) {
+  console.log('Component:', id);
+  console.log('Phase:', phase);
+  console.log('Duration:', actualDuration);
+}
+
+<Profiler id="EventList" onRender={onRenderCallback}>
+  <EventList />
+</Profiler>
+```
+
+### Performance Monitoring
+
+```typescript
+// Measure function execution time
+function measurePerformance(name: string, fn: () => void) {
+  const start = performance.now();
+  fn();
+  const end = performance.now();
+  console.log(`[Performance] ${name}: ${end - start}ms`);
+}
+
+measurePerformance('EventList render', () => {
+  renderEventList();
+});
+```
+
+### Bundle Size Analysis
+
+```bash
+# Analyze bundle size
+pnpm build
+pnpm analyze
+
+# Check individual package sizes
+pnpm why <package-name>
+```
+
+## Error Debugging
+
+### Error Boundaries
+
+```typescript
+// Add error logging to error boundary
+class ErrorBoundary extends React.Component {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[ErrorBoundary]', {
+      error: error.message,
+      stack: error.stack,
+      componentStack: errorInfo.componentStack,
+    });
+    // Send to error tracking service
+  }
+}
+```
+
+### Error Stack Traces
+
+- Read error stack traces carefully
+- Identify source of error
+- Check component hierarchy
+- Verify prop types
+- Check API responses
+
+## Common Debugging Scenarios
+
+### Component Not Rendering
+
+```typescript
+// Check if component is receiving props
+console.log('[Component] Props:', props);
+
+// Check if condition is met
+console.log('[Component] Condition:', condition);
+
+// Check if data exists
+console.log('[Component] Data:', data);
+```
+
+### State Not Updating
+
+```typescript
+// Log state changes
+useEffect(() => {
+  console.log('[Component] State changed:', state);
+}, [state]);
+
+// Check if state setter is called
+const handleUpdate = () => {
+  console.log('[Component] Updating state');
+  setState(newState);
+};
+```
+
+### API Not Working
+
+```typescript
+// Check request configuration
+console.log('[API] Request config:', {
+  url: config.url,
+  method: config.method,
+  headers: config.headers,
+  data: config.data,
+});
+
+// Check response
+console.log('[API] Response:', {
+  status: response.status,
+  data: response.data,
+});
+```
+
+## Debugging Checklist
+
+- [ ] Use React DevTools for component inspection
+- [ ] Use React Query DevTools for data fetching
+- [ ] Use structured console logging
+- [ ] Check Network tab for API issues
+- [ ] Inspect state with DevTools
+- [ ] Use breakpoints for complex issues
+- [ ] Profile performance with React Profiler
+- [ ] Check error stack traces
+- [ ] Verify component props and state
+- [ ] Monitor API requests and responses
+- [ ] Use browser DevTools effectively
+- [ ] Remove debug code before committing

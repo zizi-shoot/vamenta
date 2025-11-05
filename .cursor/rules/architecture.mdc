@@ -1,0 +1,71 @@
+---
+alwaysApply: true
+---
+
+# Architecture Rules - Feature Sliced Design (FSD)
+
+## Layer Structure
+
+```
+src/
+├── app/                  # FSD App layer (providers, global styles)
+├── pages/                # FSD Pages layer (page components)
+├── widgets/              # FSD Widgets layer (complex UI blocks)
+├── features/             # FSD Features layer (business functions)
+├── entities/             # FSD Entities layer (business entities)
+└── shared/               # FSD Shared layer (common resources)
+```
+
+## Layer Dependencies
+
+- `shared` → `entities` → `features` → `widgets` → `pages` → `app`
+- Layers can only import from lower layers
+- No circular dependencies allowed
+
+## Next.js App Router Structure
+
+```
+app/                      # Next.js App Router (root)
+├── layout.tsx           # Root layout
+├── page.tsx             # Home page
+├── events/page.tsx      # Imports from src/pages/events
+├── tasks/page.tsx       # Imports from src/pages/tasks
+├── calendar/page.tsx    # Imports from src/pages/calendar
+└── journal/page.tsx     # Imports from src/pages/journal
+```
+
+## Entity Structure
+
+Each entity should have:
+
+```
+entities/entity-name/
+├── api/
+│   ├── entity-name.api.ts
+│   └── entity-name.routes.ts
+├── model/
+│   ├── entity-name.types.ts
+│   ├── entity-name.schemas.ts
+│   └── entity-name.queries.ts
+├── ui/
+│   ├── entity-name-card.tsx
+│   └── entity-name-card.module.css
+└── index.ts
+```
+
+## Public API
+
+- Each layer should have `index.ts` files
+- Only export what's necessary for other layers
+- Don`t use barrel exports
+
+## Import Order
+
+1. React and Next.js imports
+2. Third-party libraries
+3. Shared layer imports
+4. Entity layer imports
+5. Feature layer imports
+6. Widget layer imports
+7. Page layer imports
+8. App layer imports
